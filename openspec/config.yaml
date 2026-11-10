@@ -1,0 +1,185 @@
+schema: nsoft-spec-driven
+context: >
+  Tech stack: TypeScript, Node.js, npm CLI package.
+
+  Domain: developer tooling and AI coding agent bootstrapper installation for
+  the `@nsoft/specboot` repository.
+
+  All code, comments, documentation, and technical artifacts must be written in
+  English.
+
+  Runtime-generated artifacts (the declared forge platform's issue
+  titles/descriptions; OpenSpec prose: proposals, designs, test plans, tasks,
+  reviews) follow the language recorded in the `language` key of
+  `nsoft-project.properties` (`en` or `es`, default `en`).
+
+  Shipped documentation, code, Git artifacts, and machine-parsed tokens (file
+  names, config keys, schema fields, commit message format) remain English-only
+  unconditionally, regardless of the `language` value.
+
+  We use conventional commits.
+
+  Canonical reusable artifacts live under `.ai-specs`.
+
+  Maintain symlink integrity according to `docs/standards-core.md` section 5.
+
+
+  Six artifacts in use (nsoft-spec-driven schema):
+
+  1. **proposal** (proposal-author): Why this change is needed
+
+  2. **specs** (spec-author): What the system should do (behavioral contract)
+
+  3. **design** (design-author): How to implement the change (technical
+  approach)
+
+  4. **test-plan** (proposal-author): Verification strategy before
+  implementation
+
+  5. **tasks** (spec-author, developer): Implementation work breakdown
+
+  6. **review** (reviewer): Post-implementation verdict gate (VERDICT:
+  PASS/FAIL)
+
+
+  Keep all paths relative to the repository root.
+rules:
+  proposal:
+    - Search for the declared platform's issue reference (format `#N`, or
+      `owner/repo#N` for a cross-repository reference) in the prompt or command
+      arguments.
+    - "If no issue reference is specified, proceed normally. Set `issue: null`
+      in YAML frontmatter and keep status: draft."
+    - Generate proposal.md with Why, What Changes, Capabilities sections (new
+      and modified), and Impact.
+    - Apply `docs/standards-core.md` - core principles, language rules, symlink
+      integrity, and OpenSpec task expectations.
+    - Apply `docs/standards-documentation.md` - documentation maintenance and
+      English-only documentation rules.
+    - "Responsible agent: proposal-author"
+  specs:
+    - Create specification files that define WHAT the system should do.
+    - Specs are behavior contracts, not implementation plans.
+    - Each capability in proposal.md Capabilities section requires one spec file
+      (specs/<capability>/spec.md).
+    - "Use delta operations: ADDED Requirements, MODIFIED Requirements (full
+      updated content), REMOVED Requirements (with Reason and Migration),
+      RENAMED Requirements."
+    - "A zero-delta change (no new or modified capabilities) opts out of specs
+      only by authoring `skip_specs: true` into `.openspec.yaml`; add it
+      additively and idempotently — append the key only when absent, never
+      duplicate it, and never rewrite the existing `schema`/`created` keys —
+      leaving `.openspec.yaml` warning-free under `openspec validate`."
+    - "The nsoft-owned markers (`docs_only`, `producers_not_applicable`) are
+      read from the change's `.nsoft.yaml`, never from `.openspec.yaml`. For a
+      zero-delta docs-only change, record `docs_only: true` in `.nsoft.yaml` and
+      author `skip_specs: true` into `.openspec.yaml`: `docs_only` engages
+      docs-only mode on its own with no `skip_specs` gate, while `skip_specs` is
+      a separate CLI-validity key."
+    - "New capabilities must start with ## Purpose section (50+ characters)."
+    - "Each requirement must have at least one scenario in #### Scenario:
+      format."
+    - Apply `docs/standards-core.md` - core principles, language rules, symlink
+      integrity, and OpenSpec task expectations.
+    - Apply `docs/standards-documentation.md` - documentation maintenance and
+      English-only documentation rules.
+    - "Responsible agent: spec-author"
+  design:
+    - Create the design document that explains HOW to implement the change.
+    - "Include sections: Context, Goals / Non-Goals, Decisions (with
+      alternatives), Risks / Trade-offs, Migration Plan, Open Questions (if
+      any)."
+    - Focus on architecture and approach, not line-by-line implementation
+      details.
+    - Reference the proposal for motivation and specs for requirements.
+    - Apply `docs/standards-core.md` - core principles, language rules, symlink
+      integrity, and OpenSpec task expectations.
+    - Apply `docs/standards-documentation.md` - documentation maintenance and
+      English-only documentation rules.
+    - "Responsible agent: design-author"
+  test-plan:
+    - Create test plan document defining verification strategy BEFORE
+      implementation.
+    - "IF the change's `.nsoft.yaml` declares `docs_only: true`, author the LITE
+      documental checklist instead: cover the structure, content, and
+      cross-references of the documentation artifacts and the non-affectation of
+      testable code; unit, integration, and smoke tests and spec-scenario
+      coverage targets are OUT OF SCOPE."
+    - "Include sections: Test Scope, Approach (unit/integration/smoke/manual),
+      Coverage Targets (cross-reference spec scenarios), Success Criteria."
+    - Plan what to verify based on design.md technical decisions and specs'
+      scenarios.
+    - Apply `docs/standards-core.md` - core principles, language rules, symlink
+      integrity, and OpenSpec task expectations.
+    - "Responsible agent: proposal-author (same as proposal)"
+  tasks:
+    - Break down implementation work into verifiable, completable tasks.
+    - "Group related tasks under ## numbered headings (e.g., ## 1. Setup)."
+    - "Each task MUST be a checkbox: `- [ ] X.Y Task description` (checkbox
+      format is mandatory for tracking)."
+    - All tasks should be delegated to the developer agent.
+    - Order tasks by dependency and ensure each is small enough to complete in
+      one session.
+    - Reference specs for what to build and design for how to build it.
+    - Apply `docs/standards-core.md` - core principles, language rules, symlink
+      integrity, and OpenSpec task expectations.
+    - Apply `docs/standards-backend.md` - npm/TypeScript CLI package
+      conventions, testing, and publish safety.
+    - Apply `docs/standards-documentation.md` - documentation maintenance and
+      English-only documentation rules.
+    - Apply `docs/openspec-tasks-mandatory-steps.md` - required task ordering
+      and agent-executed validation expectations.
+    - Use matching workflows from `.ai-specs/skills/` when a request aligns with
+      an available skill.
+    - "Responsible agents: spec-author (authoring); developer (implementation)"
+  review:
+    - Create post-implementation review document.
+    - "IF the change's `.nsoft.yaml` declares `docs_only: true`, author the
+      docs-lite variant: no SonarQube scan is required and no `## SonarQube Scan
+      Evidence` section is recorded; record `QUALITY_GATE: SKIPPED (no code to
+      scan)` as a Warning; derive the verdict from artifact coherence,
+      cross-reference integrity, git-diff non-affectation of testable code, and
+      docs-only marker legitimacy."
+    - "Include sections: Review Scope, Findings (issues/concerns discovered),
+      Verdict."
+    - "CRITICAL: Verdict MUST contain exactly one line matching
+      `^VERDICT:\\s*(PASS|FAIL)\\s*$` with no variant spellings or case
+      changes."
+    - "Valid formats: `VERDICT: PASS` or `VERDICT: FAIL` (colon, space, no
+      variations)."
+    - "Archiving is blocked unless review.md contains `VERDICT: PASS`."
+    - "A completed review for a change that does NOT declare `docs_only: true`
+      requires the `## SonarQube Scan Evidence` section recording scan status
+      and quality gate."
+    - Apply `docs/standards-core.md` - core principles, language rules, symlink
+      integrity, and OpenSpec task expectations.
+    - Apply `docs/standards-backend.md` - npm/TypeScript CLI package
+      conventions, testing, and publish safety.
+    - Apply `docs/standards-documentation.md` - documentation maintenance and
+      English-only documentation rules.
+    - "Responsible agent: reviewer"
+operations:
+  apply:
+    guidance:
+      - Delegate exactly one `## N.` task group to the developer per invocation;
+        full protocol in `.ai-specs/agents/nsoft.md`. The
+        one-group-per-delegation width now includes a direct local commit step
+        (no push/PR/CI) between groups, per the verify → mark → commit → report
+        cycle (no human pause) in `.ai-specs/agents/nsoft.md`.
+      - Tasks should be marked complete (`- [x]`) as implementation proceeds.
+      - Pause if task is unclear, blockers arise, or implementation reveals
+        design issues.
+  archive:
+    guidance:
+      - "Archiving is gated by review.md verdict: must contain a line matching
+        `^VERDICT:\\s*PASS\\s*$` to proceed."
+      - "If review.md is missing or contains `VERDICT: FAIL`, block archiving
+        and return helpful error message."
+      - Verify all artifacts are in completed state before proceeding.
+      - The review verdict is independently verified by the local analysis flow
+        in the nssx-review skill. The reviewer runs the scan and reads results
+        via SonarQube MCP.
+      - "SonarQube: missing or failed scan evidence is a blocking FAIL cause
+        (there is no graceful degradation for SonarQube). Playwright/E2E:
+        unavailable results may be recorded as SKIPPED (Warning) — verdict
+        unaffected; never infer an implicit FAIL from an unavailable E2E check."
