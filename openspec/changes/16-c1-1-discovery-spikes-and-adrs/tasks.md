@@ -44,6 +44,6 @@
 
 ## 10. Verificación documental de cobertura de objetivos (test-plan)
 
-- [ ] 10.1 Verificar que cada escenario de las cuatro especificaciones tiene un artefacto de descubrimiento correspondiente (test-plan Cobertura)
-- [ ] 10.2 Verificar que cada ADR contiene título, contexto, decisión, consecuencias, fecha e identificador único (espec adr-registro)
-- [ ] 10.3 Verificar trazabilidad de cada clasificación de la matriz de paridad al spike o ADR (espec matriz-paridad)
+- [x] 10.1 Verificar que cada escenario de las cuatro especificaciones tiene un artefacto de descubrimiento correspondiente (test-plan Cobertura)
+- [x] 10.2 Verificar que cada ADR contiene título, contexto, decisión, consecuencias, fecha e identificador único (espec adr-registro)
+- [x] 10.3 Verificar trazabilidad de cada clasificación de la matriz de paridad al spike o ADR (espec matriz-paridad)
