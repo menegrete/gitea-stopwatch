@@ -21,8 +21,8 @@
 
 ## 6. Ejecución del spike de escritorio Iced (iced-desktop)
 
-- [ ] 6.1 Ejecutar ventanas múltiples, siempre arriba, arrastre y redimensionado; registrar brechas del framework (espec iced-desktop)
-- [ ] 6.2 Ejecutar accesibilidad, iced_test headless y empaquetado; registrar brechas del framework (espec iced-desktop)
+- [x] 6.1 Ejecutar ventanas múltiples, siempre arriba, arrastre y redimensionado; registrar brechas del framework (espec iced-desktop)
+- [x] 6.2 Ejecutar accesibilidad, iced_test headless y empaquetado; registrar brechas del framework (espec iced-desktop)
 
 ## 7. Redacción y aprobación de ADR (adr-registro)
 
