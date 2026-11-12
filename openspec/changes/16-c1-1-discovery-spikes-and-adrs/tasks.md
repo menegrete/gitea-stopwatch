@@ -39,8 +39,8 @@
 
 ## 9. Actualización de documentación técnica (MANDATORY)
 
-- [ ] 9.1 Actualizar docs/project-context.md con hallazgos de los spikes y ADR aprobados (proposal, diseño)
-- [ ] 9.2 Actualizar docs/standards-gaps.md con desviaciones y gaps observados frente a los estándares (diseño)
+- [x] 9.1 Actualizar docs/project-context.md con hallazgos de los spikes y ADR aprobados (proposal, diseño)
+- [x] 9.2 Actualizar docs/standards-gaps.md con desviaciones y gaps observados frente a los estándares (diseño)
 
 ## 10. Verificación documental de cobertura de objetivos (test-plan)
 

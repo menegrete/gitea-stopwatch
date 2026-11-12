@@ -1,5 +1,5 @@
 ---
-status: scaffold
+status: customized
 source_substrate: scaffold
 ---
 ## Project Context
@@ -10,16 +10,16 @@ This document records the descriptive, observed state of your project: its curre
 
 ### Architecture
 
-Placeholder: Describe your project's current architecture. Include diagrams, service boundaries, deployment targets, and key infrastructure decisions if applicable.
+Desktop application ported to a Rust/Iced stack. The privileged context owns operating-system capabilities: filesystem access, network sockets to the Gitea API, and credential storage through the operating system keystore. The unprivileged UI context renders the interface through the Iced application loop and reaches privileged capabilities only through the declared surface. Window lifecycle (creation, focus, geometry, shutdown) is owned by the privileged context per the Desktop Standards process and trust boundary model.
 
 ### Stack
 
-Placeholder: List the primary technologies, frameworks, languages, and runtime environments in use. Note versions if they are pinned or otherwise significant.
+Rust desktop application with the toolchain pinned via rustup and the edition declared in Cargo.toml. Iced 0.14.x desktop framework for multi-window, always-on-top, drag and resize with declared limits. reqwest HTTP client for the Gitea API. Gitea instance at git.nsoft.com.ar (Gitea 28.3.0, OpenAPI 3.0.3). Operating-system credential store: macOS Keychain, Windows Credential Manager, Linux Secret Service, abstracted behind a platform interface.
 
 ### Domain Conventions
 
-Placeholder: Record domain-specific naming conventions, patterns, or architectural decisions that are specific to your project and not covered by the shipped standards.
+Issues are identified unequivocally as owner/repo#N per ADR-02, satisfying the forge model of one issue per repository. Time entries are associated with issue comments and the sum of time linked to a comment can be queried per ADR-03. API requests authenticate with a PAT in the Authorization: token header and are rejected without a valid PAT per ADR-01/D5.
 
 ### Known Deviations from Shipped Standards
 
-Placeholder: List any areas where your project intentionally deviates from the shipped standards, and explain the business or technical reason for each deviation. This helps future maintainers understand why an alternative pattern was chosen.
+None intentional at this discovery stage. The following gaps were observed during the spikes and are tracked in docs/standards-gaps.md: Iced core does not expose role, state and descriptive label to screen readers (accessibility gap requiring AccessKit or platform-specific code), and Iced does not produce installable packages or sign binaries (packaging gap requiring external tools such as cargo-bundle).
