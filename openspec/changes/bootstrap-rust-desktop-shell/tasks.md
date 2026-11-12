@@ -18,11 +18,11 @@ language: es
 
 ## 3. Shell Iced (C1.3)
 
-- [ ] 3.1 Crear ventana principal vacía con título y tema definidos, cierre limpio sin procesos residuales (espec: empty-main-window, scenarios window-opens-with-title-and-theme / clean-shutdown)
-- [ ] 3.2 Implementar bloqueo de instancia única mediante archivo de bloqueo en el directorio de datos de la plataforma (espec: single-instance-lock, scenario second-launch-focuses-existing-instance)
-- [ ] 3.3 Implementar persistencia de geometría (tamaño/posición) y ajuste a monitores conectados (espec: window-geometry-persistence, scenario geometry-restored-and-clamped)
-- [ ] 3.4 Renderizar navegación de marcador de posición para la futura ventana principal (espec: placeholder-navigation, scenario placeholder-navigation-renders)
-- [ ] 3.5 Verificar que `cargo run` abre la ventana vacía de Iced y cierra limpiamente (espec: logging-and-panic-hook, scenario logging-and-panic-hook-wired)
+- [x] 3.1 Crear ventana principal vacía con título y tema definidos, cierre limpio sin procesos residuales (espec: empty-main-window, scenarios window-opens-with-title-and-theme / clean-shutdown)
+- [x] 3.2 Implementar bloqueo de instancia única mediante archivo de bloqueo en el directorio de datos de la plataforma (espec: single-instance-lock, scenario second-launch-focuses-existing-instance)
+- [x] 3.3 Implementar persistencia de geometría (tamaño/posición) y ajuste a monitores conectados (espec: window-geometry-persistence, scenario geometry-restored-and-clamped)
+- [x] 3.4 Renderizar navegación de marcador de posición para la futura ventana principal (espec: placeholder-navigation, scenario placeholder-navigation-renders)
+- [x] 3.5 Verificar que `cargo run` abre la ventana vacía de Iced y cierra limpiamente (espec: logging-and-panic-hook, scenario logging-and-panic-hook-wired)
 
 ## 4. CI y calidad (C1.4)
 
