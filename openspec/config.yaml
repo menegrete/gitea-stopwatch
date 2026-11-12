@@ -1,9 +1,21 @@
 schema: nsoft-spec-driven
 context: >
-  Tech stack: TypeScript, Node.js, npm CLI package.
+  Tech stack: Rust desktop application built with the Iced 0.14.x framework
+  and the reqwest HTTP client for the Gitea API. Toolchain pinned via rustup
+  with the edition declared in Cargo.toml.
 
-  Domain: developer tooling and AI coding agent bootstrapper installation for
-  the `@nsoft/specboot` repository.
+  Domain: multi-platform desktop tool for recording time spent on different
+  Gitea issues, against the Gitea instance at git.nsoft.com.ar (Gitea 28.3.0,
+  OpenAPI 3.0.3). Issues are identified as owner/repo#N; time entries are
+  associated with issue comments and the sum of time linked to a comment can be
+  queried. API requests authenticate with a PAT in the Authorization: token
+  header and are rejected without a valid PAT.
+
+  docs/standards-core.md is the single source of truth for this project.
+
+  The standards files installed for this Application Type (desktop/Rust) are
+  docs/standards-desktop.md, docs/standards-desktop-rust.md, and
+  docs/standards-documentation.md.
 
   All code, comments, documentation, and technical artifacts must be written in
   English.
@@ -20,6 +32,12 @@ context: >
   We use conventional commits.
 
   Canonical reusable artifacts live under `.ai-specs`.
+
+  Load the core agent from `.ai-specs/agents/developer.md`, which resolves the
+  installed stack standards via the `specboot:standards-links` fragment in
+  `docs/standards-core.md` section 3.
+
+  `.ai-specs/skills` provides workflow guidance for agents.
 
   Maintain symlink integrity according to `docs/standards-core.md` section 5.
 
