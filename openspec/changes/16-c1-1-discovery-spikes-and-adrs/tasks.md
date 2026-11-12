@@ -12,7 +12,7 @@
 
 ## 4. Pruebas end-to-end de la aplicación de escritorio enviada (MANDATORY — NO APLICABLE / AGENTE DEBE VERIFICAR NO APLICABILIDAD)
 
-- [ ] 4.1 Verificar no aplicable: no existe binario ni aplicación empaquetada que ejecutar en este cambio (test-plan)
+- [x] 4.1 Verificar no aplicable: no existe binario ni aplicación empaquetada que ejecutar en este cambio (test-plan) — NO APLICABLE: este cambio de discovery/spikes/ADRs/documentación no entrega binario ni aplicación de escritorio empaquetada que ejecutar; el test-plan documentó este paso como fuera de scope.
 
 ## 5. Ejecución del spike de la API de Gitea (gitea-api)
 
