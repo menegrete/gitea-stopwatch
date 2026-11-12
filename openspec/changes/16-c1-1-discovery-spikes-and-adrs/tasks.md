@@ -26,11 +26,11 @@
 
 ## 7. Redacción y aprobación de ADR (adr-registro)
 
-- [ ] 7.1 Redactar ADR de selección de framework (crate HTTP, ventana múltiple) (D1, diseño)
-- [ ] 7.2 Redactar ADR de identidad de issue como owner/repo#N (D3, diseño)
-- [ ] 7.3 Redactar ADR de mapeo tiempo/comentario (diseño)
-- [ ] 7.4 Redactar ADR de almacenamiento de credenciales cifrado (D4, diseño)
-- [ ] 7.5 Aprobar los ADR registrados (espec adr-registro)
+- [x] 7.1 Redactar ADR de selección de framework (crate HTTP, ventana múltiple) (D1, diseño)
+- [x] 7.2 Redactar ADR de identidad de issue como owner/repo#N (D3, diseño)
+- [x] 7.3 Redactar ADR de mapeo tiempo/comentario (diseño)
+- [x] 7.4 Redactar ADR de almacenamiento de credenciales cifrado (D4, diseño)
+- [x] 7.5 Aprobar los ADR registrados (espec adr-registro)
 
 ## 8. Congelamiento de la matriz de paridad (matriz-paridad)
 
