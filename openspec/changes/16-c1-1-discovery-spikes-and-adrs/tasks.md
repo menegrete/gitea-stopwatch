@@ -16,8 +16,8 @@
 
 ## 5. Ejecución del spike de la API de Gitea (gitea-api)
 
-- [ ] 5.1 Ejecutar autenticación con PAT, GET /user y obtención de issues; registrar notas incl. límites de API (espec gitea-api)
-- [ ] 5.2 Ejecutar POST /times, POST /comments, mapeo de errores y unidad timetracking; registrar notas (espec gitea-api)
+- [x] 5.1 Ejecutar autenticación con PAT, GET /user y obtención de issues; registrar notas incl. límites de API (espec gitea-api)
+- [x] 5.2 Ejecutar POST /times, POST /comments, mapeo de errores y unidad timetracking; registrar notas (espec gitea-api)
 
 ## 6. Ejecución del spike de escritorio Iced (iced-desktop)
 
