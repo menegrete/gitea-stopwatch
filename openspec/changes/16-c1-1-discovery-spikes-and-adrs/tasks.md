@@ -34,8 +34,8 @@
 
 ## 8. Congelamiento de la matriz de paridad (matriz-paridad)
 
-- [ ] 8.1 Clasificar capacidades como portada, adaptada o descartada con justificación y trazabilidad al spike o ADR (D6, diseño)
-- [ ] 8.2 Congelar el alcance del puerto y documentar el procedimiento de cambio con aprobación documentada (espec matriz-paridad)
+- [x] 8.1 Clasificar capacidades como portada, adaptada o descartada con justificación y trazabilidad al spike o ADR (D6, diseño)
+- [x] 8.2 Congelar el alcance del puerto y documentar el procedimiento de cambio con aprobación documentada (espec matriz-paridad)
 
 ## 9. Actualización de documentación técnica (MANDATORY)
 
