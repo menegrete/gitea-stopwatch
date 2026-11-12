@@ -9,12 +9,12 @@ language: es
 
 ## 2. Fundación Rust (C1.2)
 
-- [ ] 2.1 Pinear el toolchain con `rust-toolchain.toml` y declarar la edición en `Cargo.toml` (refs: specs/app-shell/spec.md, specs/quality-gates/spec.md, design D1)
-- [ ] 2.2 Crear el layout de crate `src/{main,lib,ui,core,platform}` con `main` como punto de entrada del binario y `lib` exponiendo la API pública (design D1)
-- [ ] 2.3 Configurar lints: `forbid(unsafe_code)`, clippy y rustfmt (design D1)
-- [ ] 2.4 Implementar tipos de error con `thiserror` en `core`/`lib` y `anyhow` solo en el borde de `main` (design D2)
-- [ ] 2.5 Conectar el suscriptor tracing, el hook de pánico y el log rotativo con rotación por tamaño y tiempo (design D3)
-- [ ] 2.6 Resolver directorios de datos de usuario y caché a través de la ubicación de plataforma (source-issue C1.2)
+- [x] 2.1 Pinear el toolchain con `rust-toolchain.toml` y declarar la edición en `Cargo.toml` (refs: specs/app-shell/spec.md, specs/quality-gates/spec.md, design D1)
+- [x] 2.2 Crear el layout de crate `src/{main,lib,ui,core,platform}` con `main` como punto de entrada del binario y `lib` exponiendo la API pública (design D1)
+- [x] 2.3 Configurar lints: `forbid(unsafe_code)`, clippy y rustfmt (design D1)
+- [x] 2.4 Implementar tipos de error con `thiserror` en `core`/`lib` y `anyhow` solo en el borde de `main` (design D2)
+- [x] 2.5 Conectar el suscriptor tracing, el hook de pánico y el log rotativo con rotación por tamaño y tiempo (design D3)
+- [x] 2.6 Resolver directorios de datos de usuario y caché a través de la ubicación de plataforma (source-issue C1.2)
 
 ## 3. Shell Iced (C1.3)
 

@@ -1,0 +1,9 @@
+[package]
+name = "gitea-stopwatch"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+dirs = "5"
+thiserror = "1"
