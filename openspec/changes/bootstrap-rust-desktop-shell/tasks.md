@@ -26,12 +26,12 @@ language: es
 
 ## 4. CI y calidad (C1.4)
 
-- [ ] 4.1 Configurar canal de CI para Linux y Windows con `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test --all-targets` (espec: ci-pipeline)
-- [ ] 4.2 Configurar cobertura con `cargo llvm-cov` y línea base del 90 % para líneas y funciones (espec: coverage-baseline)
-- [ ] 4.3 Ejecutar `cargo audit` y `cargo deny check` en el canal de CI (espec: ci-pipeline, scenario audit-and-deny-block-merge)
-- [ ] 4.4 Crear `tests/e2e.rs` con directorio de datos de usuario aislado y limpieza tras la ejecución (espec: e2e-test, scenario e2e-runs-against-isolated-user-data)
-- [ ] 4.5 Configurar SonarQube para Rust y ejecutar el escaneo que produce el resultado de puerta de calidad (espec: sonarqube-scan)
-- [ ] 4.6 Ejecutar `nsoft-specboot collect` y registrar el manifiesto de evidencia bajo `openspec/changes/bootstrap-rust-desktop-shell/logs/` (espec: evidence-capture)
+- [x] 4.1 Configurar canal de CI para Linux y Windows con `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test --all-targets` (espec: ci-pipeline)
+- [x] 4.2 Configurar cobertura con `cargo llvm-cov` y línea base del 90 % para líneas y funciones (espec: coverage-baseline)
+- [x] 4.3 Ejecutar `cargo audit` y `cargo deny check` en el canal de CI (espec: ci-pipeline, scenario audit-and-deny-block-merge)
+- [x] 4.4 Crear `tests/e2e.rs` con directorio de datos de usuario aislado y limpieza tras la ejecución (espec: e2e-test, scenario e2e-runs-against-isolated-user-data)
+- [x] 4.5 Configurar SonarQube para Rust y ejecutar el escaneo que produce el resultado de puerta de calidad (espec: sonarqube-scan)
+- [x] 4.6 Ejecutar `nsoft-specboot collect` y registrar el manifiesto de evidencia bajo `openspec/changes/bootstrap-rust-desktop-shell/logs/` (espec: evidence-capture)
 
 ## 5. Endurecimiento CI (C1.5)
 
