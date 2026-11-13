@@ -9,7 +9,6 @@ pub mod ui;
 use std::path::PathBuf;
 
 use crate::platform::instance::{LaunchRole, claim};
-use crate::platform::logging::{self, Level};
 use crate::ui::window::MainWindow;
 use iced::Theme;
 
@@ -26,11 +25,8 @@ pub fn run() -> core::Result<()> {
     match claim(&user_data_dir)? {
         LaunchRole::Primary => run_shell(user_data_dir),
         LaunchRole::ForwardedToRunningInstance => {
-            logging::log(
-                Level::Info,
-                module_path!(),
-                &[],
-                "another instance is running; focus requested; exiting without opening a window",
+            tracing::info!(
+                "another instance is running; focus requested; exiting without opening a window"
             );
             Ok(())
         }

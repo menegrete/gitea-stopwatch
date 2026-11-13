@@ -465,13 +465,9 @@ fn e2e_logging_and_panic_hook_write_to_the_rolling_log_without_secrets() {
     // Act: the process edge initializes logging against the isolated data dir.
     logging::init(&log_dir).expect("logging must initialize in an isolated data dir");
 
-    // Act: the application records a structured startup event.
-    logging::log(
-        logging::Level::Info,
-        "e2e",
-        &[("phase", "startup")],
-        "shell started",
-    );
+    // Act: the application records a structured startup event through the
+    // `tracing` facade, which the installed subscriber renders to the file.
+    tracing::info!(target: "e2e", phase = "startup", "shell started");
 
     // Act: an unhandled panic is raised; the installed hook must record it and
     // the unwind must be caught so the test process survives.

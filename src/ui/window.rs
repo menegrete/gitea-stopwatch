@@ -20,7 +20,6 @@ use iced::{Alignment, Element, Length, Subscription, Task, time, window};
 
 use crate::core::{Geometry, clamp_to_monitor, load_geometry, save_geometry};
 use crate::platform::focus::{self, FocusAction};
-use crate::platform::logging::{self, Level};
 
 /// Application title shown in the window decoration.
 pub const APP_TITLE: &str = "gitea-stopwatch";
@@ -121,23 +120,16 @@ pub fn update(state: &mut MainWindow, message: Message) -> Task<Message> {
         Message::PlaceholderNavActivated => Task::none(),
         Message::PollFocusRequest => match focus::take_focus_request(&state.user_data_dir) {
             Ok(true) => {
-                logging::log(
-                    Level::Info,
-                    module_path!(),
-                    &[],
-                    "focus request received from a second launch",
-                );
+                tracing::info!("focus request received from a second launch");
                 // Ask the runtime which window answers the request; the answer
                 // arrives as `FocusTargetResolved` and decides raise vs fallback.
                 window::latest().map(Message::FocusTargetResolved)
             }
             Ok(false) => Task::none(),
             Err(error) => {
-                logging::log(
-                    Level::Warn,
-                    module_path!(),
-                    &[("error", &error.to_string())],
-                    "focus request could not be consumed",
+                tracing::warn!(
+                    error = error.to_string(),
+                    "focus request could not be consumed"
                 );
                 Task::none()
             }
@@ -146,12 +138,7 @@ pub fn update(state: &mut MainWindow, message: Message) -> Task<Message> {
             match focus::decide_focus_action(target.is_some()) {
                 FocusAction::Raise => {
                     state.focus = FocusStatus::Raised;
-                    logging::log(
-                        Level::Info,
-                        module_path!(),
-                        &[],
-                        "raising the existing window for a second launch",
-                    );
+                    tracing::info!("raising the existing window for a second launch");
                     // A minimized window ignores a focus request, so restore it
                     // first and only then hand the raise to the platform.
                     target
@@ -166,11 +153,8 @@ pub fn update(state: &mut MainWindow, message: Message) -> Task<Message> {
                     // Documented fallback: no window can be raised here (headless
                     // run or pre-window request), so the instance keeps running and
                     // records why the request could not be honored.
-                    logging::log(
-                        Level::Warn,
-                        module_path!(),
-                        &[],
-                        "focus requested; raising the window is unsupported on this platform",
+                    tracing::warn!(
+                        "focus requested; raising the window is unsupported on this platform"
                     );
                     Task::none()
                 }

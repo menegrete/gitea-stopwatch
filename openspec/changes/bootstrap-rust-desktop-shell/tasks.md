@@ -81,7 +81,7 @@ language: es
 
 ## 13. Major Resolution — tracing Facade
 
-- [ ] 13.1 Adopt the `tracing` facade crate (v0.1.44 available) and route the rolling-file writer + panic hook through a `tracing` subscriber layer, satisfying standard/D3/task 2.5 without requiring the unavailable tracing-subscriber 0.2 stack
+- [x] 13.1 Adopt the `tracing` facade crate (v0.1.44 available) and route the rolling-file writer + panic hook through a `tracing` subscriber layer, satisfying standard/D3/task 2.5 without requiring the unavailable tracing-subscriber 0.2 stack
 
 ## 14. Major Resolution — CI Coverage Stage
 

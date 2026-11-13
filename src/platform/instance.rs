@@ -16,7 +16,6 @@ use crate::core::Result;
 
 use crate::platform::focus;
 use crate::platform::lock::{self, LockOutcome};
-use crate::platform::logging::{self, Level};
 
 /// The role a starting process takes in the single-instance contract.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,11 +47,9 @@ pub fn claim(user_data_dir: &Path) -> Result<LaunchRole> {
         }
         LockOutcome::AlreadyRunning { .. } => {
             if let Err(error) = focus::request_focus(user_data_dir) {
-                logging::log(
-                    Level::Warn,
-                    module_path!(),
-                    &[("error", &error.to_string())],
-                    "focus request could not be delivered; the running instance was not raised",
+                tracing::warn!(
+                    error = error.to_string(),
+                    "focus request could not be delivered; the running instance was not raised"
                 );
             }
             Ok(LaunchRole::ForwardedToRunningInstance)

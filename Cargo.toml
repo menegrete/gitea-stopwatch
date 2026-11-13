@@ -12,3 +12,6 @@ iced = { version = "0.14", features = ["tokio"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "1"
+# `tracing` facade only: the rolling-file subscriber lives in
+# `platform::logging` so the log stays a bounded local file.
+tracing = "0.1"
