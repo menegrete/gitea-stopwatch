@@ -1,0 +1,13 @@
+
+running 8 tests
+test e2e_window_title_is_present ... ok
+test e2e_window_title_theme_and_placeholder_navigation_are_configured ... ok
+test e2e_uses_isolated_user_data_and_cleans_up ... ok
+test e2e_logging_and_panic_hook_write_to_the_rolling_log_without_secrets ... ok
+test e2e_geometry_is_restored_and_clamped_to_monitors ... ok
+test e2e_second_launch_is_rejected_while_first_instance_holds_the_lock ... ok
+test e2e_second_launch_requests_focus_and_exits_without_a_second_window ... ok
+test e2e_shipped_binary_opens_a_window_and_shuts_down_cleanly ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.20s
+
