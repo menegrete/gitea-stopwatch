@@ -2,9 +2,14 @@
 //!
 //! The lock file namespaces the application by process ID. On startup, the
 //! application tries to create the lock file exclusively. If it already
-//! exists and the owning process is still alive, the new instance exits.
-//! If the owning process is dead, the stale lock is removed and the new
-//! instance proceeds (spec: single-instance-lock).
+//! exists and the owning process is still alive, the new instance does not own
+//! the lock. If the owning process is dead, the stale lock is removed and the
+//! new instance proceeds (spec: single-instance-lock).
+//!
+//! [`try_acquire`] reports the outcome so the launch path can tell a genuine
+//! second launch from a fresh start and forward a focus request to the running
+//! instance ([`crate::platform::instance`]); [`acquire`] keeps the simpler
+//! "become the only instance or fail" contract.
 
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
@@ -14,12 +19,22 @@ use crate::core::{Error, Result};
 
 const LOCK_FILE_NAME: &str = "gitea-stopwatch.lock";
 
-/// Acquires the single-instance lock in the user data directory.
+/// Outcome of a single-instance acquisition attempt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LockOutcome {
+    /// This process created the lock and is the only running instance.
+    Acquired,
+    /// A live process already owns the lock. `owner_pid` is the PID recorded in
+    /// the lock file, when it is parseable.
+    AlreadyRunning { owner_pid: Option<u32> },
+}
+
+/// Tries to acquire the single-instance lock in the user data directory.
 ///
-/// Returns `Ok(())` if the lock was acquired (this is the first instance).
-/// Returns an [`Error`] if another instance is already running or if the
-/// lock file cannot be created or read.
-pub fn acquire(user_data_dir: &Path) -> Result<()> {
+/// Returns [`LockOutcome::Acquired`] when this process created the lock, and
+/// [`LockOutcome::AlreadyRunning`] when a live process already owns it. Stale
+/// locks whose owner is no longer alive are removed and retried.
+pub fn try_acquire(user_data_dir: &Path) -> Result<LockOutcome> {
     let lock_path = user_data_dir.join(LOCK_FILE_NAME);
 
     fs::create_dir_all(user_data_dir)?;
@@ -35,22 +50,37 @@ pub fn acquire(user_data_dir: &Path) -> Result<()> {
             // We own the lock. Write our PID so a stale lock can be detected.
             let _ = writeln!(file, "{}", std::process::id());
             let _ = file.flush();
-            Ok(())
+            Ok(LockOutcome::Acquired)
         }
-        Err(ref e) if e.kind() == io::ErrorKind::AlreadyExists => {
+        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
             // Lock file exists: check whether the owner is still alive.
-            match read_owner_pid(&lock_path) {
-                Some(pid) if is_process_alive(pid) => Err(Error::Platform {
-                    operation: "single-instance lock already held".to_string(),
+            let owner_pid = read_owner_pid(&lock_path);
+            match owner_pid {
+                Some(pid) if is_process_alive(pid) => Ok(LockOutcome::AlreadyRunning {
+                    owner_pid: Some(pid),
                 }),
                 _ => {
                     // Stale lock: remove it and try again.
                     let _ = fs::remove_file(&lock_path);
-                    acquire(user_data_dir)
+                    try_acquire(user_data_dir)
                 }
             }
         }
         Err(e) => Err(Error::Io { source: e }),
+    }
+}
+
+/// Acquires the single-instance lock in the user data directory.
+///
+/// Returns `Ok(())` if the lock was acquired (this is the first instance).
+/// Returns an [`Error`] if another instance is already running or if the
+/// lock file cannot be created or read.
+pub fn acquire(user_data_dir: &Path) -> Result<()> {
+    match try_acquire(user_data_dir)? {
+        LockOutcome::Acquired => Ok(()),
+        LockOutcome::AlreadyRunning { .. } => Err(Error::Platform {
+            operation: "single-instance lock already held".to_string(),
+        }),
     }
 }
 
@@ -201,6 +231,58 @@ mod tests {
         );
 
         release(&dir).unwrap();
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn try_acquire_returns_acquired_for_a_free_lock() {
+        let dir = tmp_dir();
+        let _ = fs::remove_dir_all(&dir);
+
+        assert_eq!(try_acquire(&dir).unwrap(), LockOutcome::Acquired);
+        assert!(dir.join(LOCK_FILE_NAME).exists());
+
+        release(&dir).unwrap();
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn try_acquire_reports_the_live_owner_of_a_held_lock() {
+        let dir = tmp_dir();
+        let _ = fs::remove_dir_all(&dir);
+        // Acquiring with this process' own PID makes the owner provably alive.
+        assert_eq!(try_acquire(&dir).unwrap(), LockOutcome::Acquired);
+
+        assert_eq!(
+            try_acquire(&dir).unwrap(),
+            LockOutcome::AlreadyRunning {
+                owner_pid: Some(std::process::id())
+            }
+        );
+
+        release(&dir).unwrap();
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn try_acquire_keeps_the_owner_pid_of_a_foreign_lock() {
+        let dir = tmp_dir();
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let lock_path = dir.join(LOCK_FILE_NAME);
+        {
+            let mut file = File::create(&lock_path).unwrap();
+            // A PID that is not this process but is a live-process placeholder:
+            // PID 1 is always alive on Linux, and on other platforms the
+            // liveness check assumes alive, so the lock is never stale here.
+            writeln!(file, "1").unwrap();
+        }
+
+        assert_eq!(
+            try_acquire(&dir).unwrap(),
+            LockOutcome::AlreadyRunning { owner_pid: Some(1) }
+        );
+
         let _ = fs::remove_dir_all(&dir);
     }
 

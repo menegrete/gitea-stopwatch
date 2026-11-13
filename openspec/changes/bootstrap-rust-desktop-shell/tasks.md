@@ -77,7 +77,7 @@ language: es
 
 ## 12. Major Resolution — Single-Instance Focus
 
-- [ ] 12.1 Implement focusing the already-running instance on second launch (platform-specific: X11/Win32) or, if infeasible headless, implement a documented IPC/fallback that raises the existing window; cover with a unit/integration test where possible
+- [x] 12.1 Implement focusing the already-running instance on second launch (platform-specific: X11/Win32) or, if infeasible headless, implement a documented IPC/fallback that raises the existing window; cover with a unit/integration test where possible
 
 ## 13. Major Resolution — tracing Facade
 

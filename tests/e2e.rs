@@ -22,7 +22,8 @@ use std::path::{Path, PathBuf};
 use gitea_stopwatch::core::{
     Error, Geometry, clamp_to_monitor, config_path_in, load_geometry_at, save_geometry_at,
 };
-use gitea_stopwatch::platform::{dirs, lock, logging};
+use gitea_stopwatch::platform::instance::LaunchRole;
+use gitea_stopwatch::platform::{dirs, focus, instance, lock, logging};
 use gitea_stopwatch::ui::window::APP_TITLE;
 
 /// Name of the single-instance lock file (mirrors `platform::lock`).
@@ -231,6 +232,113 @@ fn e2e_second_launch_is_rejected_while_first_instance_holds_the_lock() {
     assert!(
         !data_base.exists(),
         "the isolated lock directory must be removed after the test"
+    );
+}
+
+/// End-to-end check for the focus half of the `single-instance-lock`
+/// requirement (scenario `second-launch-focuses-existing-instance`).
+///
+/// No display server is available in CI, so the test asserts the cross-process
+/// contract the window behaviour rests on: the second launch is refused the
+/// lock, leaves a focus request for the running instance, and therefore exits
+/// without opening a second window; the running instance consumes that request
+/// exactly once in order to raise its own window, and the documented fallback
+/// covers the case where no window exists to raise.
+#[test]
+fn e2e_second_launch_requests_focus_and_exits_without_a_second_window() {
+    let data_base = isolated_dir("focus-data");
+    let user_data_dir = dirs::user_data_dir_from(&data_base);
+    let lock_path = user_data_dir.join(LOCK_FILE_NAME);
+    let focus_path = focus::focus_request_path(&user_data_dir);
+
+    // Act/Assert: the first launch becomes the primary instance, owns the lock
+    // and does not inherit a focus request.
+    assert_eq!(
+        instance::claim(&user_data_dir).expect("the first launch must claim the instance role"),
+        LaunchRole::Primary
+    );
+    assert!(
+        lock_path.exists(),
+        "the primary instance must hold the lock"
+    );
+    assert!(
+        !focus_path.exists(),
+        "a fresh primary launch must not inherit a focus request at {:?}",
+        focus_path
+    );
+
+    // Act: a second launch starts while the first instance is running.
+    let second_launch =
+        instance::claim(&user_data_dir).expect("a second launch must be arbitrated");
+
+    // Assert: it is forwarded to the running instance instead of opening a
+    // window of its own.
+    assert_eq!(
+        second_launch,
+        LaunchRole::ForwardedToRunningInstance,
+        "a second launch must be forwarded to the running instance"
+    );
+    assert!(
+        focus_path.exists(),
+        "the second launch must leave a focus request at {:?}",
+        focus_path
+    );
+    assert_eq!(
+        fs::read_to_string(&focus_path).expect("the focus request must be readable"),
+        std::process::id().to_string(),
+        "the focus request must record the forwarding process id"
+    );
+
+    // Assert: requesting focus does not disturb the lock ownership, so the
+    // running instance stays the target that gets raised.
+    assert_eq!(
+        fs::read_to_string(&lock_path)
+            .expect("the lock file must survive a forwarded launch")
+            .trim(),
+        std::process::id().to_string(),
+        "a forwarded launch must not rewrite the lock ownership"
+    );
+
+    // Act: the running instance observes the request.
+    let observed = focus::take_focus_request(&user_data_dir)
+        .expect("the running instance must read the focus request");
+
+    // Assert: the request is consumed exactly once, so the window is raised
+    // once for one second launch.
+    assert!(observed, "the running instance must observe the request");
+    assert!(
+        !focus_path.exists(),
+        "consuming the request must remove it from {:?}",
+        focus_path
+    );
+    assert!(
+        !focus::take_focus_request(&user_data_dir).expect("a consumed request is not an error"),
+        "a consumed focus request must not be raised twice"
+    );
+
+    // Assert: the raise-versus-fallback decision is explicit — a window is
+    // raised when one exists, and the documented fallback applies when the run
+    // is headless and there is no window to raise.
+    assert_eq!(focus::decide_focus_action(true), focus::FocusAction::Raise);
+    assert_eq!(
+        focus::decide_focus_action(false),
+        focus::FocusAction::LogFallback
+    );
+
+    // Act: the first instance exits, freeing the lock for the next launch.
+    lock::release(&user_data_dir).expect("releasing the lock must succeed");
+    assert_eq!(
+        instance::claim(&user_data_dir).expect("a launch after the first exit must claim"),
+        LaunchRole::Primary,
+        "a launch after the first instance exits must become primary"
+    );
+    lock::release(&user_data_dir).expect("releasing the lock must succeed");
+
+    // Cleanup: remove the isolated directory tree.
+    let _ = fs::remove_dir_all(&data_base);
+    assert!(
+        !data_base.exists(),
+        "the isolated focus directory must be removed after the test"
     );
 }
 
