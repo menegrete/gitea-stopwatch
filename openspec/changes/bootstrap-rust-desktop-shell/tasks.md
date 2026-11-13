@@ -104,3 +104,25 @@ language: es
 - [x] 18.1 Pin the toolchain to a specific version in `rust-toolchain.toml` and add a `[profile.release]` section to `Cargo.toml`
 - [x] 18.2 Populate `clippy.toml`/`rustfmt.toml` and add crate-root lint denies in `src/lib.rs`/`src/main.rs`
 - [x] 18.3 Document the two Warnings (branch-protection server-side, Playwright SKIPPED) in `docs/standards-gaps.md`
+
+## 19. Blocker Resolution — SonarQube Scan Coverage Linking
+
+- [ ] 19.1 Diagnose and fix the `cargo llvm-cov` / `nsoft-specboot scan` link failure when instrumenting `tests/e2e.rs` (rust-lld `debug_str` offset / `R_X86_64_32 out of range`) — e.g. reduce instrumented debug info via `[profile.dev] debug = 1` / `[profile.test] debug = 1` (`line-tables-only`) and disable incremental for instrumented builds
+- [ ] 19.2 Verify `nsoft-specboot scan` at HEAD exits with a fresh analysis (scanStatus SUCCESS; qualityGate PASSED or SKIPPED) and align the CI `Run coverage` stage with the working configuration
+
+## 20. Major Resolution — Remove Unsafe Env Mutation in E2E
+
+- [ ] 20.1 Refactor `tests/e2e.rs` env-mutating helpers (`override_env`/`restore_env`) to explicit path seams so no `unsafe { env::set_var }` remains and parallel tests no longer race on process env
+
+## 21. Major Resolution — Commit Planning Artifacts
+
+- [ ] 21.1 Track the change's planning artifacts that are still untracked (`proposal.md`, `design.md`, `test-plan.md`, `specs/app-shell/spec.md`, `source-issue.md`, `.openspec.yaml`) so the normative sources are in git
+
+## 22. Minor Resolution — Review Minors
+
+- [ ] 22.1 Fix stale documentation numbers (test counts, coverage figures) in docs
+- [ ] 22.2 Report coverage `branches` as null / not-applicable when the denominator is 0 instead of a misleading 100
+- [ ] 22.3 Bound the orphan-lock recovery recursion (convert to a loop or add a retry cap)
+- [ ] 22.4 Make the `LLVM_COV_FLAGS` scope regex portable/document the platform difference
+- [ ] 22.5 Add `--locked` to `cargo install` steps in CI
+- [ ] 22.6 Fix malformed `tasks.md` frontmatter (proper `---` fences) and verify `openspec status --change bootstrap-rust-desktop-shell --json` still parses
