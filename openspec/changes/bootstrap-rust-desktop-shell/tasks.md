@@ -93,7 +93,7 @@ language: es
 
 ## 16. Major Resolution — Windows Orphan-Lock Recovery
 
-- [ ] 16.1 Implement Windows process-liveness check for orphan-lock recovery (`is_process_alive` must not assume alive on non-Linux); unit-test the pure decision logic
+- [x] 16.1 Implement cross-platform process-liveness check for orphan-lock recovery (`is_process_alive` must not assume alive on non-Linux: Linux and Windows both resolve it through the safe `sysinfo` process table) and make the liveness tests platform-neutral so `cargo test --all-targets` passes on both CI operating systems
 
 ## 17. Major Resolution — Geometry Clamp Wiring
 

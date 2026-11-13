@@ -6,6 +6,11 @@
 //! the lock. If the owning process is dead, the stale lock is removed and the
 //! new instance proceeds (spec: single-instance-lock).
 //!
+//! Liveness is resolved against the operating system process table through
+//! [`sysinfo`], so orphan-lock recovery behaves the same on the platforms the
+//! application ships to (Linux and Windows) and on macOS, and this crate keeps
+//! its `#![forbid(unsafe_code)]` invariant.
+//!
 //! [`try_acquire`] reports the outcome so the launch path can tell a genuine
 //! second launch from a fresh start and forward a focus request to the running
 //! instance ([`crate::platform::instance`]); [`acquire`] keeps the simpler
@@ -14,6 +19,8 @@
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::Path;
+
+use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 
 use crate::core::{Error, Result};
 
@@ -97,22 +104,33 @@ fn read_owner_pid(lock_path: &Path) -> Option<u32> {
     contents.trim().parse::<u32>().ok()
 }
 
-/// Checks whether a process with the given PID is still alive.
+/// Checks whether a process with the given PID is alive on this platform.
 ///
-/// On Linux, this checks `/proc/<pid>`. On other platforms, this is a
-/// best-effort check that returns `true` (assume alive) to avoid
-/// falsely removing a lock we cannot verify.
+/// The operating system process table is read through [`sysinfo`] and `pid` is
+/// looked up there, which gives one code path with the same semantics on Linux,
+/// Windows and macOS. A process table that cannot be read at all reports the
+/// owner as alive: an unverifiable lock is kept instead of removed, so the worst
+/// outcome is a relaunch that refuses to start rather than two live instances.
+///
+/// PID reuse is not detected: an owner that crashed while its PID was reassigned
+/// keeps its lock until the reusing process exits, which the next launch repairs.
 fn is_process_alive(pid: u32) -> bool {
-    #[cfg(target_os = "linux")]
-    {
-        Path::new("/proc").join(pid.to_string()).exists()
-    }
+    let pid = Pid::from_u32(pid);
 
-    #[cfg(not(target_os = "linux"))]
-    {
-        let _ = pid;
-        true
-    }
+    let Ok(mut system) = System::new() else {
+        // Fail safe: without the process table the owner cannot be proven dead.
+        return true;
+    };
+
+    // Only the requested PID is refreshed; the process kind carries no
+    // per-process metrics because liveness needs the table entry alone.
+    system.refresh_processes_specifics(
+        ProcessesToUpdate::Some(&[pid]),
+        false,
+        ProcessRefreshKind::nothing(),
+    );
+
+    system.process(pid).is_some()
 }
 
 #[cfg(test)]
@@ -191,7 +209,10 @@ mod tests {
 
     #[test]
     fn is_process_alive_returns_false_for_nonexistent_pid() {
-        assert!(!is_process_alive(99999999));
+        // `u32::MAX` is outside the PID space of every supported platform
+        // (Linux caps PIDs at `/proc/sys/kernel/pid_max`, Windows allocates
+        // PIDs from a much smaller table), so no process can own it.
+        assert!(!is_process_alive(u32::MAX));
     }
 
     #[test]
@@ -265,36 +286,43 @@ mod tests {
     }
 
     #[test]
-    fn try_acquire_keeps_the_owner_pid_of_a_foreign_lock() {
+    fn try_acquire_keeps_the_owner_pid_written_to_the_lock_file() {
         let dir = tmp_dir();
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         let lock_path = dir.join(LOCK_FILE_NAME);
         {
             let mut file = File::create(&lock_path).unwrap();
-            // A PID that is not this process but is a live-process placeholder:
-            // PID 1 is always alive on Linux, and on other platforms the
-            // liveness check assumes alive, so the lock is never stale here.
-            writeln!(file, "1").unwrap();
+            // The lock file is written as a foreign launch would leave it: this
+            // process did not create it, so the reported owner PID has to be the
+            // one read from disk rather than an assumed self PID.
+            writeln!(file, "{}", std::process::id()).unwrap();
         }
 
         assert_eq!(
             try_acquire(&dir).unwrap(),
-            LockOutcome::AlreadyRunning { owner_pid: Some(1) }
+            LockOutcome::AlreadyRunning {
+                owner_pid: Some(std::process::id())
+            }
+        );
+        assert_eq!(
+            fs::read_to_string(&lock_path).unwrap().trim(),
+            std::process::id().to_string(),
+            "a lock held by a live owner must be left untouched"
         );
 
         let _ = fs::remove_dir_all(&dir);
     }
 
-    #[cfg(target_os = "linux")]
     #[test]
     fn acquire_replaces_lock_file_owned_by_dead_process() {
         let dir = tmp_dir();
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         let lock_path = dir.join(LOCK_FILE_NAME);
-        // A PID that is not present in /proc can never be alive.
-        fs::write(&lock_path, "99999999").unwrap();
+        // A PID outside the PID space of every supported platform is never alive,
+        // so the orphaned lock must be recovered on Linux and Windows alike.
+        fs::write(&lock_path, u32::MAX.to_string()).unwrap();
 
         assert!(acquire(&dir).is_ok());
         assert_eq!(
