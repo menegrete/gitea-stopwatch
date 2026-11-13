@@ -97,7 +97,7 @@ language: es
 
 ## 17. Major Resolution — Geometry Clamp Wiring
 
-- [ ] 17.1 Wire real monitor enumeration into the runtime boot path so geometry is clamped to connected monitors (replace `clamp_to_monitor(geometry, None)` with the detected monitor bounds); test the wiring logic
+- [x] 17.1 Wire real monitor enumeration into the runtime boot path so geometry is clamped to connected monitors (replace `clamp_to_monitor(geometry, None)` with the detected monitor bounds); test the wiring logic
 
 ## 18. Minor Resolution — Toolchain, Release Profile, Lints
 

@@ -88,6 +88,12 @@ pub enum FocusStatus {
 pub struct MainWindow {
     /// Current window geometry (size and position).
     geometry: Geometry,
+    /// Geometry restored from the previous session, held until the runtime
+    /// reports the monitor size so it is clamped before it reaches the window.
+    ///
+    /// `None` once the restore completed, when it could not be resolved, or
+    /// when there was nothing to restore at all.
+    pending_restore: Option<Geometry>,
     /// Whether the window close has been requested.
     closing: bool,
     /// User data directory holding the single-instance focus request channel.
@@ -100,9 +106,18 @@ impl MainWindow {
     fn new(user_data_dir: PathBuf, geometry: Geometry) -> Self {
         Self {
             geometry,
+            pending_restore: None,
             closing: false,
             user_data_dir,
             focus: FocusStatus::Idle,
+        }
+    }
+
+    /// State carrying a restored geometry that still awaits the monitor report.
+    fn restoring(user_data_dir: PathBuf, restored: Geometry) -> Self {
+        Self {
+            pending_restore: Some(restored),
+            ..Self::new(user_data_dir, restored)
         }
     }
 }
@@ -118,6 +133,15 @@ pub enum Message {
     Resized { size: iced::Size },
     /// The window was moved, carrying the new position.
     Moved { position: iced::Point },
+    /// The runtime resolved which window, if any, carries the restored
+    /// geometry.
+    WindowResolved(Option<window::Id>),
+    /// The runtime reported the logical size of the monitor containing the
+    /// window, if the platform can report one.
+    MonitorResolved {
+        id: window::Id,
+        size: Option<iced::Size>,
+    },
     /// Timer tick: look for a focus request left by a second launch.
     PollFocusRequest,
     /// The runtime resolved which window, if any, answers a focus request.
@@ -128,15 +152,64 @@ pub enum Message {
     AutoCloseTargetResolved(Option<window::Id>),
 }
 
-/// Boot function: creates the initial state and no startup task.
+/// Bounds usable for clamping, from a runtime-reported monitor size.
+///
+/// Iced exposes the logical size of the monitor containing the window through
+/// `iced::window::monitor_size(id)` — and only once the window exists. A
+/// platform that cannot answer (headless session, or a Wayland session without
+/// monitor geometry) reports `None`, and a zero-sized report carries no usable
+/// information either; both degrade to "no clamping" rather than pinning the
+/// window to a degenerate rectangle.
+///
+/// Iced 0.14 reports no monitor origin, so these bounds are measured from the
+/// windowing system's origin rather than from the monitor's own top-left
+/// corner. A geometry restored onto a secondary monitor is therefore clamped
+/// against the monitor size but not against that monitor's offset; origin-aware
+/// multi-monitor clamping is deferred until iced exposes monitor bounds.
+fn monitor_bounds(monitor: Option<iced::Size>) -> Option<(f64, f64)> {
+    let size = monitor?;
+    let bounds = (f64::from(size.width), f64::from(size.height));
+
+    if bounds.0 > 0.0 && bounds.1 > 0.0 {
+        Some(bounds)
+    } else {
+        None
+    }
+}
+
+/// The geometry to apply for a runtime-reported monitor.
+///
+/// Pure wiring decision: it turns the runtime's monitor report into the
+/// `clamp_to_monitor` bounds, so the clamping itself stays a pure core
+/// function and the wiring is unit-testable without a display server.
+fn geometry_for_monitor(restored: Geometry, monitor: Option<iced::Size>) -> Geometry {
+    clamp_to_monitor(restored, monitor_bounds(monitor))
+}
+
+/// Boot function: creates the initial state and the geometry-restore task.
 ///
 /// The user data directory is injected by the library edge so the window and
 /// the single-instance lock observe the same directory.
+///
+/// The monitor size cannot be observed before the window exists, so a restored
+/// geometry is not clamped here: boot asks the runtime for the window id and
+/// the clamp is applied as soon as the monitor is reported, then the clamped
+/// geometry is pushed to the real window (spec:
+/// window-geometry-persistence, scenario `geometry-restored-and-clamped`).
 pub fn boot(user_data_dir: PathBuf) -> (MainWindow, Task<Message>) {
-    let geometry = load_geometry().ok().flatten().unwrap_or_default();
-    let geometry = clamp_to_monitor(geometry, None);
-
-    (MainWindow::new(user_data_dir, geometry), Task::none())
+    match load_geometry().ok().flatten() {
+        Some(geometry) => (
+            MainWindow::restoring(user_data_dir, geometry),
+            // Chained after the window opens, so the id resolves to the real
+            // window; the runtime runs this task once the window exists.
+            window::latest().map(Message::WindowResolved),
+        ),
+        // First session: nothing to restore, so nothing to clamp.
+        None => (
+            MainWindow::new(user_data_dir, Geometry::default()),
+            Task::none(),
+        ),
+    }
 }
 
 /// Update function: processes messages and returns a task.
@@ -151,14 +224,64 @@ pub fn update(state: &mut MainWindow, message: Message) -> Task<Message> {
             window::close(id)
         }
         Message::Resized { size } => {
-            state.geometry.width = size.width as f64;
-            state.geometry.height = size.height as f64;
+            // While a restore is in flight the window still carries the size
+            // the runtime opened it with, so the event must not clobber the
+            // geometry being restored. Once the restore is applied, events are
+            // the live geometry that the close path persists.
+            if state.pending_restore.is_none() {
+                state.geometry.width = f64::from(size.width);
+                state.geometry.height = f64::from(size.height);
+            }
             Task::none()
         }
         Message::Moved { position } => {
-            state.geometry.x = position.x as f64;
-            state.geometry.y = position.y as f64;
+            if state.pending_restore.is_none() {
+                state.geometry.x = f64::from(position.x);
+                state.geometry.y = f64::from(position.y);
+            }
             Task::none()
+        }
+        Message::WindowResolved(target) => match target {
+            Some(id) => {
+                // The monitor containing the window is observable only once the
+                // window exists, which is why the clamp waits for this answer.
+                window::monitor_size(id).map(move |size| Message::MonitorResolved { id, size })
+            }
+            None => {
+                // Nothing to clamp against and nothing to resize: the restored
+                // geometry is kept as loaded (documented no-monitor fallback).
+                tracing::warn!(
+                    "no window answered the geometry restore; restoring without a monitor clamp"
+                );
+                state.pending_restore = None;
+                Task::none()
+            }
+        },
+        Message::MonitorResolved { id, size } => {
+            let Some(restored) = state.pending_restore.take() else {
+                // No restore is in flight; a late report changes nothing.
+                return Task::none();
+            };
+
+            let clamped = geometry_for_monitor(restored, size);
+            state.geometry = clamped;
+
+            if size.is_none() {
+                tracing::warn!(
+                    "the runtime reported no monitor; the restored geometry is not clamped"
+                );
+            }
+
+            // Push the clamped geometry to the real window, so what the user
+            // sees is exactly what the close path persists.
+            window::resize(
+                id,
+                iced::Size::new(clamped.width as f32, clamped.height as f32),
+            )
+            .chain(window::move_to(
+                id,
+                iced::Point::new(clamped.x as f32, clamped.y as f32),
+            ))
         }
         Message::PlaceholderNavActivated => Task::none(),
         Message::PollFocusRequest => match focus::take_focus_request(&state.user_data_dir) {
@@ -404,6 +527,222 @@ mod tests {
         assert_eq!(state.geometry.height, 768.0);
         assert_eq!(state.geometry.x, 20.0);
         assert_eq!(state.geometry.y, 30.0);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// A restored geometry that neither fits a 1080p monitor nor sits on it.
+    fn oversized_restore() -> Geometry {
+        Geometry {
+            width: 3200.0,
+            height: 2000.0,
+            x: 4000.0,
+            y: 3000.0,
+        }
+    }
+
+    #[test]
+    fn a_smaller_reported_monitor_clamps_the_restored_geometry() {
+        let clamped =
+            geometry_for_monitor(oversized_restore(), Some(iced::Size::new(1920.0, 1080.0)));
+
+        assert_eq!(
+            clamped.width, 1920.0,
+            "width must be clamped to the monitor"
+        );
+        assert_eq!(
+            clamped.height, 1080.0,
+            "height must be clamped to the monitor"
+        );
+        assert_eq!(clamped.x, 0.0, "an off-screen x must be pulled on screen");
+        assert_eq!(clamped.y, 0.0, "an off-screen y must be pulled on screen");
+    }
+
+    #[test]
+    fn a_larger_reported_monitor_keeps_the_restored_geometry() {
+        let restored = Geometry {
+            width: 1280.0,
+            height: 800.0,
+            x: 240.0,
+            y: 120.0,
+        };
+
+        assert_eq!(
+            geometry_for_monitor(restored, Some(iced::Size::new(2560.0, 1440.0))),
+            restored,
+            "a geometry that fits the monitor must be restored verbatim"
+        );
+    }
+
+    #[test]
+    fn an_unreported_monitor_keeps_the_restored_geometry() {
+        let restored = oversized_restore();
+
+        assert_eq!(
+            geometry_for_monitor(restored, None),
+            restored,
+            "without a monitor report the geometry must be left untouched"
+        );
+        assert_eq!(monitor_bounds(None), None);
+    }
+
+    #[test]
+    fn a_zero_sized_monitor_report_is_treated_as_unreported() {
+        let restored = oversized_restore();
+
+        for size in [
+            iced::Size::new(0.0, 0.0),
+            iced::Size::new(0.0, 1080.0),
+            iced::Size::new(1920.0, 0.0),
+        ] {
+            assert_eq!(
+                monitor_bounds(Some(size)),
+                None,
+                "a zero-sized report carries no usable bounds"
+            );
+            assert_eq!(
+                geometry_for_monitor(restored, Some(size)),
+                restored,
+                "a degenerate report must not move or shrink the window"
+            );
+        }
+    }
+
+    #[test]
+    fn a_reported_monitor_pulls_an_offscreen_restore_back_on_screen() {
+        let restored = Geometry {
+            width: 800.0,
+            height: 600.0,
+            x: 5000.0,
+            y: 5000.0,
+        };
+
+        let clamped = geometry_for_monitor(restored, Some(iced::Size::new(1920.0, 1080.0)));
+
+        assert_eq!(clamped.x, 1120.0);
+        assert_eq!(clamped.y, 480.0);
+    }
+
+    #[test]
+    fn the_monitor_report_clamps_and_applies_the_restored_geometry() {
+        let dir = tmp_dir();
+        let _ = fs::remove_dir_all(&dir);
+        let mut state = MainWindow::restoring(dir.clone(), oversized_restore());
+
+        let _task = update(
+            &mut state,
+            Message::MonitorResolved {
+                id: window::Id::unique(),
+                size: Some(iced::Size::new(1280.0, 720.0)),
+            },
+        );
+
+        assert_eq!(state.geometry.width, 1280.0);
+        assert_eq!(state.geometry.height, 720.0);
+        assert_eq!(state.geometry.x, 0.0);
+        assert_eq!(state.geometry.y, 0.0);
+        assert!(
+            state.pending_restore.is_none(),
+            "the restore must be applied exactly once"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_applied_restore_is_the_geometry_persisted_on_close() {
+        let dir = tmp_dir();
+        let _ = fs::remove_dir_all(&dir);
+        let mut state = MainWindow::restoring(dir.clone(), oversized_restore());
+
+        let _task = update(
+            &mut state,
+            Message::MonitorResolved {
+                id: window::Id::unique(),
+                size: Some(iced::Size::new(1280.0, 720.0)),
+            },
+        );
+        let _task = update(
+            &mut state,
+            Message::CloseRequested {
+                id: window::Id::unique(),
+            },
+        );
+
+        assert_eq!(
+            state.geometry.width, 1280.0,
+            "the close path must persist the clamped geometry"
+        );
+        assert_eq!(state.geometry.height, 720.0);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_restore_in_flight_ignores_the_default_window_events() {
+        let dir = tmp_dir();
+        let _ = fs::remove_dir_all(&dir);
+        let restored = oversized_restore();
+        let mut state = MainWindow::restoring(dir.clone(), restored);
+
+        // The runtime opens the window with its own default size before the
+        // clamp is applied; those events must not overwrite the restore.
+        let _task = update(
+            &mut state,
+            Message::Resized {
+                size: iced::Size::new(1024.0, 768.0),
+            },
+        );
+        let _task = update(
+            &mut state,
+            Message::Moved {
+                position: iced::Point::new(0.0, 0.0),
+            },
+        );
+
+        assert_eq!(state.geometry, restored);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_unresolved_window_keeps_the_restored_geometry() {
+        let dir = tmp_dir();
+        let _ = fs::remove_dir_all(&dir);
+        let restored = oversized_restore();
+        let mut state = MainWindow::restoring(dir.clone(), restored);
+
+        let _task = update(&mut state, Message::WindowResolved(None));
+
+        assert_eq!(
+            state.geometry, restored,
+            "the documented fallback keeps the restored geometry as loaded"
+        );
+        assert!(state.pending_restore.is_none());
+        assert!(!state.closing);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_monitor_report_without_a_pending_restore_is_ignored() {
+        let dir = tmp_dir();
+        let _ = fs::remove_dir_all(&dir);
+        let mut state = test_window(&dir);
+        let before = state.geometry;
+
+        let _task = update(
+            &mut state,
+            Message::MonitorResolved {
+                id: window::Id::unique(),
+                size: Some(iced::Size::new(640.0, 480.0)),
+            },
+        );
+
+        assert_eq!(
+            state.geometry, before,
+            "a report arriving outside a restore must change nothing"
+        );
 
         let _ = fs::remove_dir_all(&dir);
     }
