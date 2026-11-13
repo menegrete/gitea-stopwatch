@@ -3,5 +3,8 @@
 mod config;
 mod error;
 
-pub use config::{Geometry, clamp_to_monitor, load_geometry, save_geometry};
+pub use config::{
+    Geometry, clamp_to_monitor, config_path_in, load_geometry, load_geometry_at, save_geometry,
+    save_geometry_at,
+};
 pub use error::{Error, Result};

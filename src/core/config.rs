@@ -53,11 +53,21 @@ fn config_path() -> Result<std::path::PathBuf> {
     Ok(dirs::user_data_dir()?.join(CONFIG_FILE_NAME))
 }
 
+/// Resolve the configuration file path for an explicit user data base directory.
+///
+/// Composes the same platform namespacing and file name the application uses,
+/// so a caller can address the real configuration location without mutating the
+/// process environment. Integration tests use it to drive [`load_geometry_at`]
+/// and [`save_geometry_at`] against an isolated directory tree.
+pub fn config_path_in(base: &Path) -> std::path::PathBuf {
+    dirs::user_data_dir_from(base).join(CONFIG_FILE_NAME)
+}
+
 /// Load persisted geometry from a specific configuration file.
 ///
-/// Split from [`load_geometry`] so the file logic is unit-testable against a
+/// Split from [`load_geometry`] so the file logic is testable against a
 /// temporary path instead of the developer's real application data directory.
-fn load_geometry_at(path: &Path) -> Result<Option<Geometry>> {
+pub fn load_geometry_at(path: &Path) -> Result<Option<Geometry>> {
     match std::fs::read_to_string(path) {
         Ok(contents) => {
             let config: Config =
@@ -84,9 +94,9 @@ pub fn load_geometry() -> Result<Option<Geometry>> {
 
 /// Save geometry to a specific configuration file.
 ///
-/// Split from [`save_geometry`] so the file logic is unit-testable against a
+/// Split from [`save_geometry`] so the file logic is testable against a
 /// temporary path instead of the developer's real application data directory.
-fn save_geometry_at(path: &Path, geometry: Geometry) -> Result<()> {
+pub fn save_geometry_at(path: &Path, geometry: Geometry) -> Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }

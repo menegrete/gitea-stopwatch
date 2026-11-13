@@ -60,9 +60,9 @@ language: es
 
 ## 9. Review Findings Resolution — E2E Scope (Major)
 
-- [ ] 9.1 Expand tests/e2e.rs to validate instance lock (second launch focuses existing instance)
-- [ ] 9.2 Expand tests/e2e.rs to validate geometry persistence and clamp to monitors
-- [ ] 9.3 Expand tests/e2e.rs to validate logging-and-panic-hook writes without secrets
+- [x] 9.1 Expand tests/e2e.rs to validate instance lock (second launch focuses existing instance)
+- [x] 9.2 Expand tests/e2e.rs to validate geometry persistence and clamp to monitors
+- [x] 9.3 Expand tests/e2e.rs to validate logging-and-panic-hook writes without secrets
 
 ## 10. Review Findings Resolution — Warnings
 
