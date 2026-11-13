@@ -1,10 +1,10 @@
 //! End-to-end tests for the gitea-stopwatch desktop shell.
 //!
-//! These tests run against an isolated user-data directory using the
-//! `GITEA_STOPWATCH_DATA_DIR` and `GITEA_STOPWATCH_CACHE_DIR` environment
-//! overrides (see `src/platform/dirs.rs`), so they never touch the
-//! developer's real application data. Each test cleans up its isolated
-//! directories and restores the environment after execution.
+//! Every test works in its own isolated temp tree reached through explicit path
+//! seams, never the developer's real application data, and removes that tree
+//! before finishing. The test process environment is never mutated: a
+//! process-wide mutation races with the threads the test harness runs in, so
+//! isolation is carried by path arguments instead of environment overrides.
 //!
 //! The shell behaviour tests drive the crate's public surface with explicit
 //! isolated paths (`dirs::user_data_dir_from`, `core::config_path_in`,
@@ -79,55 +79,31 @@ fn isolated_dir(suffix: &str) -> PathBuf {
     ))
 }
 
-/// Point the app's env overrides at isolated directories, returning the
-/// previous values so the caller can restore them.
-fn override_env(data_dir: &Path, cache_dir: &Path) -> (Option<String>, Option<String>) {
-    let prev_data = env::var("GITEA_STOPWATCH_DATA_DIR").ok();
-    let prev_cache = env::var("GITEA_STOPWATCH_CACHE_DIR").ok();
-    unsafe {
-        env::set_var("GITEA_STOPWATCH_DATA_DIR", data_dir);
-        env::set_var("GITEA_STOPWATCH_CACHE_DIR", cache_dir);
-    }
-    (prev_data, prev_cache)
-}
-
-/// Restore previously saved env override values (or remove them).
-fn restore_env(prev: (Option<String>, Option<String>)) {
-    match prev.0 {
-        Some(v) => unsafe {
-            env::set_var("GITEA_STOPWATCH_DATA_DIR", v);
-        },
-        None => unsafe {
-            env::remove_var("GITEA_STOPWATCH_DATA_DIR");
-        },
-    }
-    match prev.1 {
-        Some(v) => unsafe {
-            env::set_var("GITEA_STOPWATCH_CACHE_DIR", v);
-        },
-        None => unsafe {
-            env::remove_var("GITEA_STOPWATCH_CACHE_DIR");
-        },
-    }
-}
-
+/// End-to-end check that the application's per-user state is isolated to an
+/// explicit base directory and fully removed on cleanup.
+///
+/// The directories are resolved from explicit bases rather than from the
+/// process-wide environment overrides, so nothing here mutates the environment
+/// the other test threads run in.
 #[test]
 fn e2e_uses_isolated_user_data_and_cleans_up() {
-    let data_dir = isolated_dir("data");
-    let cache_dir = isolated_dir("cache");
+    let data_base = isolated_dir("data");
+    let cache_base = isolated_dir("cache");
 
-    // Arrange: isolated env overrides
-    let prev = override_env(&data_dir, &cache_dir);
+    // Arrange: remember the environment overrides as they are, so the test can
+    // prove afterwards that it never changed them (reading is safe).
+    let env_data_before = env::var_os("GITEA_STOPWATCH_DATA_DIR");
+    let env_cache_before = env::var_os("GITEA_STOPWATCH_CACHE_DIR");
 
-    // Act: resolve user data and cache directories through the app's platform
-    // abstraction, which honours the env overrides.
-    let resolved_data = dirs::user_data_dir().expect("user data dir should resolve");
-    let resolved_cache = dirs::cache_dir().expect("cache dir should resolve");
+    // Act: resolve user data and cache directories from explicit bases through
+    // the app's platform abstraction.
+    let resolved_data = dirs::user_data_dir_from(&data_base);
+    let resolved_cache = dirs::cache_dir_from(&cache_base);
 
     // Assert: directories live under the isolated temp locations, never the
     // real application data directory.
     assert!(
-        resolved_data.starts_with(&data_dir),
+        resolved_data.starts_with(&data_base),
         "user data dir should be under isolated data dir, got {:?}",
         resolved_data
     );
@@ -136,8 +112,28 @@ fn e2e_uses_isolated_user_data_and_cleans_up() {
         "user data dir should be namespaced by app name"
     );
     assert!(
-        resolved_cache.starts_with(&cache_dir),
+        resolved_cache.starts_with(&cache_base),
         "cache dir should be under isolated cache dir, got {:?}",
+        resolved_cache
+    );
+    assert!(
+        resolved_cache.ends_with("gitea-stopwatch"),
+        "cache dir should be namespaced by app name"
+    );
+
+    // Act: the application materializes its state directories on first launch.
+    fs::create_dir_all(&resolved_data).expect("the isolated user data dir must be created");
+    fs::create_dir_all(&resolved_cache).expect("the isolated cache dir must be created");
+
+    // Assert: the state now lives entirely inside the isolated tree.
+    assert!(
+        resolved_data.is_dir(),
+        "the isolated user data dir must exist at {:?}",
+        resolved_data
+    );
+    assert!(
+        resolved_cache.is_dir(),
+        "the isolated cache dir must exist at {:?}",
         resolved_cache
     );
 
@@ -151,21 +147,31 @@ fn e2e_uses_isolated_user_data_and_cleans_up() {
         "window title should match the app's advertised title"
     );
 
-    // Cleanup: remove isolated directories and restore the environment.
-    restore_env(prev);
-    let _ = fs::remove_dir_all(&data_dir);
-    let _ = fs::remove_dir_all(&cache_dir);
+    // Cleanup: remove the isolated directory trees.
+    let _ = fs::remove_dir_all(&data_base);
+    let _ = fs::remove_dir_all(&cache_base);
 
-    // Assert: env overrides are restored to their previous state.
+    // Assert: cleanup removed everything the test created.
     assert!(
-        env::var("GITEA_STOPWATCH_DATA_DIR").is_err()
-            || env::var("GITEA_STOPWATCH_DATA_DIR").unwrap() != data_dir.to_string_lossy(),
-        "GITEA_STOPWATCH_DATA_DIR should not point to the isolated dir after cleanup"
+        !resolved_data.exists() && !data_base.exists(),
+        "the isolated user data dir must be removed after the test"
     );
     assert!(
-        env::var("GITEA_STOPWATCH_CACHE_DIR").is_err()
-            || env::var("GITEA_STOPWATCH_CACHE_DIR").unwrap() != cache_dir.to_string_lossy(),
-        "GITEA_STOPWATCH_CACHE_DIR should not point to the isolated dir after cleanup"
+        !resolved_cache.exists() && !cache_base.exists(),
+        "the isolated cache dir must be removed after the test"
+    );
+
+    // Assert: the process environment was never touched, so parallel tests
+    // cannot race on it.
+    assert_eq!(
+        env::var_os("GITEA_STOPWATCH_DATA_DIR"),
+        env_data_before,
+        "the test must not mutate GITEA_STOPWATCH_DATA_DIR"
+    );
+    assert_eq!(
+        env::var_os("GITEA_STOPWATCH_CACHE_DIR"),
+        env_cache_before,
+        "the test must not mutate GITEA_STOPWATCH_CACHE_DIR"
     );
 }
 

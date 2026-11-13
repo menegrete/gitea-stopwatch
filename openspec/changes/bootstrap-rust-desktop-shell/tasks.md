@@ -112,7 +112,7 @@ language: es
 
 ## 20. Major Resolution — Remove Unsafe Env Mutation in E2E
 
-- [ ] 20.1 Refactor `tests/e2e.rs` env-mutating helpers (`override_env`/`restore_env`) to explicit path seams so no `unsafe { env::set_var }` remains and parallel tests no longer race on process env
+- [x] 20.1 Refactor `tests/e2e.rs` env-mutating helpers (`override_env`/`restore_env`) to explicit path seams so no `unsafe { env::set_var }` remains and parallel tests no longer race on process env
 
 ## 21. Major Resolution — Commit Planning Artifacts
 
