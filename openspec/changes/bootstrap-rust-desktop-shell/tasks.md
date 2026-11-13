@@ -47,3 +47,24 @@ language: es
 - [x] 6.2 Ejecutar pruebas unitarias y verificaciones de cobertura (MANDATORIO)
 - [x] 6.3 Pruebas de extremo a extremo de la aplicación de escritorio enviada (MANDATORIO — AGENTE DEBE EJECUTAR)
 - [x] 6.4 Actualizar la documentación técnica (MANDATORIO)
+
+## 7. Review Findings Resolution — Implementation Verification (Blocker)
+
+- [x] 7.1 Verify committed implementation matches specs/app-shell/spec.md requirements (empty-main-window, single-instance-lock, window-geometry-persistence, logging-and-panic-hook, placeholder-navigation)
+- [x] 7.2 Verify committed implementation matches specs/quality-gates/spec.md requirements (ci-pipeline, sonarqube-scan, coverage-baseline, e2e-test, evidence-capture, ci-hardening)
+
+## 8. Review Findings Resolution — Coverage (Major)
+
+- [ ] 8.1 Add unit tests to improve coverage toward 90% threshold for core/ and platform/ modules
+- [ ] 8.2 Document coverage-as-trend rationale per design D6 until feature work begins
+
+## 9. Review Findings Resolution — E2E Scope (Major)
+
+- [ ] 9.1 Expand tests/e2e.rs to validate instance lock (second launch focuses existing instance)
+- [ ] 9.2 Expand tests/e2e.rs to validate geometry persistence and clamp to monitors
+- [ ] 9.3 Expand tests/e2e.rs to validate logging-and-panic-hook writes without secrets
+
+## 10. Review Findings Resolution — Warnings
+
+- [ ] 10.1 Document SonarQube quality gate configuration rationale (gate PASS with coverage trend)
+- [ ] 10.2 Improve evidence capture documentation for implementation verification
