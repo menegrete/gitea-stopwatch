@@ -71,9 +71,9 @@ language: es
 
 ## 11. Blocker Resolution — Coverage Evidence Reconciliation
 
-- [ ] 11.1 Align the `coverage-baseline` spec requirement with the approved design D6 scoping (90% applies to unit-testable `core/`+`platform/`; GUI/binary edge excluded and covered by e2e), so spec, design, and evidence no longer contradict
-- [ ] 11.2 Reconcile `nsoft-specboot collect` coverage thresholds with that scope (or record thresholds matching the documented gate) so the evidence manifest is internally consistent
-- [ ] 11.3 Re-run `nsoft-specboot collect` and verify evidence.json records metrics consistent with the documented thresholds
+- [x] 11.1 Align the `coverage-baseline` spec requirement with the approved design D6 scoping (90% applies to unit-testable `core/`+`platform/`; GUI/binary edge excluded and covered by e2e), so spec, design, and evidence no longer contradict
+- [x] 11.2 Reconcile `nsoft-specboot collect` coverage thresholds with that scope (or record thresholds matching the documented gate) so the evidence manifest is internally consistent
+- [x] 11.3 Re-run `nsoft-specboot collect` and verify evidence.json records metrics consistent with the documented thresholds
 
 ## 12. Major Resolution — Single-Instance Focus
 
