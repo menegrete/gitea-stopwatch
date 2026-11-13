@@ -116,7 +116,7 @@ language: es
 
 ## 21. Major Resolution — Commit Planning Artifacts
 
-- [ ] 21.1 Track the change's planning artifacts that are still untracked (`proposal.md`, `design.md`, `test-plan.md`, `specs/app-shell/spec.md`, `source-issue.md`, `.openspec.yaml`) so the normative sources are in git
+- [x] 21.1 Track the change's planning artifacts that are still untracked (`proposal.md`, `design.md`, `test-plan.md`, `specs/app-shell/spec.md`, `source-issue.md`, `.openspec.yaml`) so the normative sources are in git
 
 ## 22. Minor Resolution — Review Minors
 
