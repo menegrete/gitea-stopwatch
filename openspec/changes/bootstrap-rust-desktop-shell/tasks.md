@@ -107,8 +107,8 @@ language: es
 
 ## 19. Blocker Resolution — SonarQube Scan Coverage Linking
 
-- [ ] 19.1 Diagnose and fix the `cargo llvm-cov` / `nsoft-specboot scan` link failure when instrumenting `tests/e2e.rs` (rust-lld `debug_str` offset / `R_X86_64_32 out of range`) — e.g. reduce instrumented debug info via `[profile.dev] debug = 1` / `[profile.test] debug = 1` (`line-tables-only`) and disable incremental for instrumented builds
-- [ ] 19.2 Verify `nsoft-specboot scan` at HEAD exits with a fresh analysis (scanStatus SUCCESS; qualityGate PASSED or SKIPPED) and align the CI `Run coverage` stage with the working configuration
+- [x] 19.1 Diagnose and fix the `cargo llvm-cov` / `nsoft-specboot scan` link failure when instrumenting `tests/e2e.rs` (rust-lld `debug_str` offset / `R_X86_64_32 out of range`) — e.g. reduce instrumented debug info via `[profile.dev] debug = 1` / `[profile.test] debug = 1` (`line-tables-only`) and disable incremental for instrumented builds
+- [x] 19.2 Verify `nsoft-specboot scan` at HEAD exits with a fresh analysis (scanStatus SUCCESS; qualityGate PASSED or SKIPPED) and align the CI `Run coverage` stage with the working configuration
 
 ## 20. Major Resolution — Remove Unsafe Env Mutation in E2E
 

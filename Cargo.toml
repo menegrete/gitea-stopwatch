@@ -34,3 +34,28 @@ opt-level = 3
 lto = "thin"
 codegen-units = 1
 strip = "symbols"
+
+# Coverage builds: `cargo llvm-cov` recompiles the crate with
+# `-C instrument-coverage`, which layers coverage counters and mappings on top
+# of the debug sections. At the `debug = 2` default the final link of the `e2e`
+# target (and of the shipped binary it spawns) is rejected or crashes inside
+# `rust-lld` (`.debug_str): offset ... is outside the section`,
+# `relocation R_X86_64_32 out of range`, or a linker SIGSEGV). Line tables are
+# all `llvm-cov` needs to map counters back to source lines, and the setting
+# reaches the whole dependency graph, which is where most of the debug volume
+# comes from. The trade-off is deliberate and bounded: `cargo run` builds keep
+# breakpoints and line stepping, they only lose local-variable debug info.
+# `incremental = false` keeps instrumented builds reproducible, because the
+# incremental units of an `-C instrument-coverage` crate are large and can reuse
+# stale coverage mappings across rebuilds.
+[profile.dev]
+debug = "line-tables-only"
+incremental = false
+
+# `test` inherits `dev`, but both keys are restated explicitly: the coverage
+# recipe compiles the unit and `e2e` test targets under this profile, and
+# stating the same flags on both profiles keeps a single `target/` directory
+# from holding artifacts built with two different debug levels.
+[profile.test]
+debug = "line-tables-only"
+incremental = false
