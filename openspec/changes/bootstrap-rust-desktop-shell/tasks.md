@@ -43,7 +43,7 @@ language: es
 
 ## 6. Validación y documentación (pasos obligatorios §5.2)
 
-- [ ] 6.1 Revisar y actualizar las pruebas unitarias existentes (MANDATORIO)
-- [ ] 6.2 Ejecutar pruebas unitarias y verificaciones de cobertura (MANDATORIO)
-- [ ] 6.3 Pruebas de extremo a extremo de la aplicación de escritorio enviada (MANDATORIO — AGENTE DEBE EJECUTAR)
-- [ ] 6.4 Actualizar la documentación técnica (MANDATORIO)
+- [x] 6.1 Revisar y actualizar las pruebas unitarias existentes (MANDATORIO)
+- [x] 6.2 Ejecutar pruebas unitarias y verificaciones de cobertura (MANDATORIO)
+- [x] 6.3 Pruebas de extremo a extremo de la aplicación de escritorio enviada (MANDATORIO — AGENTE DEBE EJECUTAR)
+- [x] 6.4 Actualizar la documentación técnica (MANDATORIO)

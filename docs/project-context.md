@@ -14,12 +14,16 @@ Desktop application ported to a Rust/Iced stack. The privileged context owns ope
 
 ### Stack
 
-Rust desktop application with the toolchain pinned via rustup and the edition declared in Cargo.toml. Iced 0.14.x desktop framework for multi-window, always-on-top, drag and resize with declared limits. reqwest HTTP client for the Gitea API. Gitea instance at git.nsoft.com.ar (Gitea 28.3.0, OpenAPI 3.0.3). Operating-system credential store: macOS Keychain, Windows Credential Manager, Linux Secret Service, abstracted behind a platform interface.
+Rust desktop application with the toolchain pinned via `rust-toolchain.toml` (stable channel, edition 2024) and `Cargo.lock` committed. Single crate with layout `src/{main,lib,ui,core,platform}`: `main.rs` is the binary edge (argument handling, logging init, `anyhow` error-to-exit conversion), `lib.rs` exposes the public API and carries `#![forbid(unsafe_code)]`, `ui/` holds the Iced 0.14.x view layer, `core/` holds pure application logic (typed `thiserror` errors, geometry persistence), and `platform/` holds the privileged edge (user-data/cache dirs, single-instance lock file, rolling log writer with panic hook). Dependencies: `anyhow`, `dirs`, `iced 0.14`, `serde`/`serde_json`, `thiserror`. Gitea instance at git.nsoft.com.ar (Gitea 28.3.0, OpenAPI 3.0.3). API requests authenticate with a PAT in the `Authorization: token` header.
 
 ### Domain Conventions
 
-Issues are identified unequivocally as owner/repo#N per ADR-02, satisfying the forge model of one issue per repository. Time entries are associated with issue comments and the sum of time linked to a comment can be queried per ADR-03. API requests authenticate with a PAT in the Authorization: token header and are rejected without a valid PAT per ADR-01/D5.
+Issues are identified unequivocally as `owner/repo#N`, satisfying the forge model of one issue per repository. Time entries are associated with issue comments and the sum of time linked to a comment can be queried. API requests authenticate with a PAT in the `Authorization: token` header and are rejected without a valid PAT.
 
 ### Known Deviations from Shipped Standards
 
-None intentional at this discovery stage. The following gaps were observed during the spikes and are tracked in docs/standards-gaps.md: Iced core does not expose role, state and descriptive label to screen readers (accessibility gap requiring AccessKit or platform-specific code), and Iced does not produce installable packages or sign binaries (packaging gap requiring external tools such as cargo-bundle).
+None intentional at this stage. Tracked in `docs/standards-gaps.md`: Iced core does not expose role, state and descriptive label to screen readers (accessibility gap requiring AccessKit or platform-specific code), and Iced does not produce installable packages or sign binaries (packaging gap requiring external tools such as `cargo-bundle`).
+
+### Verification and Quality Gates
+
+CI pipeline runs on Linux and Windows: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --all-targets`, coverage via `cargo llvm-cov --lcov` with a 90 % line/function baseline (treated as a trend until feature work begins), `cargo audit` and `cargo deny check`. `tests/e2e.rs` runs against an isolated user-data directory and cleans up after execution. SonarQube scan produces a quality-gate result. Branch `main` is protected requiring PR and status checks; Dependabot opens updates for Cargo and GitHub Actions; `Swatinem/rust-cache` provides build caching with cancel-in-progress concurrency.
