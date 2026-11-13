@@ -68,3 +68,39 @@ language: es
 
 - [x] 10.1 Document SonarQube quality gate configuration rationale (gate PASS with coverage trend)
 - [x] 10.2 Improve evidence capture documentation for implementation verification
+
+## 11. Blocker Resolution — Coverage Evidence Reconciliation
+
+- [ ] 11.1 Align the `coverage-baseline` spec requirement with the approved design D6 scoping (90% applies to unit-testable `core/`+`platform/`; GUI/binary edge excluded and covered by e2e), so spec, design, and evidence no longer contradict
+- [ ] 11.2 Reconcile `nsoft-specboot collect` coverage thresholds with that scope (or record thresholds matching the documented gate) so the evidence manifest is internally consistent
+- [ ] 11.3 Re-run `nsoft-specboot collect` and verify evidence.json records metrics consistent with the documented thresholds
+
+## 12. Major Resolution — Single-Instance Focus
+
+- [ ] 12.1 Implement focusing the already-running instance on second launch (platform-specific: X11/Win32) or, if infeasible headless, implement a documented IPC/fallback that raises the existing window; cover with a unit/integration test where possible
+
+## 13. Major Resolution — tracing Facade
+
+- [ ] 13.1 Adopt the `tracing` facade crate (v0.1.44 available) and route the rolling-file writer + panic hook through a `tracing` subscriber layer, satisfying standard/D3/task 2.5 without requiring the unavailable tracing-subscriber 0.2 stack
+
+## 14. Major Resolution — CI Coverage Stage
+
+- [ ] 14.1 Add the coverage stage (`cargo llvm-cov --lcov`) to `.github/workflows/ci.yml`, enforcing the documented coverage scope/threshold consistent with group 11
+
+## 15. Major Resolution — E2E Drives Shipped Binary
+
+- [ ] 15.1 Add an e2e test that launches the shipped binary (headless via Xvfb where available, or a documented harness) and asserts window open / clean shutdown / title / theme / placeholder navigation are exercised by execution
+
+## 16. Major Resolution — Windows Orphan-Lock Recovery
+
+- [ ] 16.1 Implement Windows process-liveness check for orphan-lock recovery (`is_process_alive` must not assume alive on non-Linux); unit-test the pure decision logic
+
+## 17. Major Resolution — Geometry Clamp Wiring
+
+- [ ] 17.1 Wire real monitor enumeration into the runtime boot path so geometry is clamped to connected monitors (replace `clamp_to_monitor(geometry, None)` with the detected monitor bounds); test the wiring logic
+
+## 18. Minor Resolution — Toolchain, Release Profile, Lints
+
+- [ ] 18.1 Pin the toolchain to a specific version in `rust-toolchain.toml` and add a `[profile.release]` section to `Cargo.toml`
+- [ ] 18.2 Populate `clippy.toml`/`rustfmt.toml` and add crate-root lint denies in `src/lib.rs`/`src/main.rs`
+- [ ] 18.3 Document the two Warnings (branch-protection server-side, Playwright SKIPPED) in `docs/standards-gaps.md`
