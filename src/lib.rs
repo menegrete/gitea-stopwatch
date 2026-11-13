@@ -10,7 +10,6 @@ use std::path::PathBuf;
 
 use crate::platform::instance::{LaunchRole, claim};
 use crate::ui::window::MainWindow;
-use iced::Theme;
 
 /// Run the gitea-stopwatch application.
 ///
@@ -48,7 +47,8 @@ fn run_shell(user_data_dir: PathBuf) -> core::Result<()> {
         crate::ui::window::update,
         crate::ui::window::view,
     )
-    .theme(|_: &MainWindow| Theme::Light)
+    .title(crate::ui::window::APP_TITLE)
+    .theme(crate::ui::window::theme)
     .subscription(|state: &MainWindow| crate::ui::window::subscription(state))
     .run()
     .map_err(|err| core::Error::Platform {

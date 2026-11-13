@@ -16,13 +16,52 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use iced::widget::{column, container, text};
-use iced::{Alignment, Element, Length, Subscription, Task, time, window};
+use iced::{Alignment, Element, Length, Subscription, Task, Theme, time, window};
 
 use crate::core::{Geometry, clamp_to_monitor, load_geometry, save_geometry};
 use crate::platform::focus::{self, FocusAction};
 
 /// Application title shown in the window decoration.
 pub const APP_TITLE: &str = "gitea-stopwatch";
+
+/// Placeholder navigation heading rendered in the empty main window.
+///
+/// The navigation area is reserved for the future main window and carries no
+/// business functionality (spec: placeholder-navigation).
+pub const PLACEHOLDER_NAV_TITLE: &str = "Placeholder navigation";
+
+/// Supporting line rendered under the placeholder navigation heading.
+pub const PLACEHOLDER_NAV_HINT: &str = "Reserved for the future main window.";
+
+/// Theme configured for the main window (spec: empty-main-window).
+pub const WINDOW_THEME: Theme = Theme::Light;
+
+/// Test harness variable: delay in milliseconds after which the running
+/// instance closes its own window.
+///
+/// A headless end-to-end run cannot press the window close button, so the
+/// suite sets this variable to drive the *real* close path in the shipped
+/// binary — `CloseRequested` → geometry persisted → window closed → process
+/// exits `0` — instead of killing the process. When the variable is unset
+/// (every normal run) the harness is inert.
+pub const AUTO_CLOSE_ENV: &str = "GITEA_STOPWATCH_E2E_AUTO_CLOSE_MS";
+
+/// Parse the auto-close harness delay.
+///
+/// A missing, non-numeric or zero value leaves the harness disarmed, so a
+/// malformed value can never turn a normal run into a self-closing one.
+fn parse_auto_close(raw: Option<&str>) -> Option<Duration> {
+    let millis: u64 = raw?.trim().parse().ok()?;
+    if millis == 0 {
+        return None;
+    }
+    Some(Duration::from_millis(millis))
+}
+
+/// The configured auto-close delay, if the harness variable is set.
+fn auto_close_delay() -> Option<Duration> {
+    parse_auto_close(std::env::var(AUTO_CLOSE_ENV).ok().as_deref())
+}
 
 /// How often the running instance looks for a focus request from a second
 /// launch.
@@ -83,6 +122,10 @@ pub enum Message {
     PollFocusRequest,
     /// The runtime resolved which window, if any, answers a focus request.
     FocusTargetResolved(Option<window::Id>),
+    /// Harness tick: the configured auto-close delay elapsed.
+    AutoCloseRequested,
+    /// The runtime resolved which window the harness closes.
+    AutoCloseTargetResolved(Option<window::Id>),
 }
 
 /// Boot function: creates the initial state and no startup task.
@@ -160,14 +203,32 @@ pub fn update(state: &mut MainWindow, message: Message) -> Task<Message> {
                 }
             }
         }
+        Message::AutoCloseRequested => window::latest().map(Message::AutoCloseTargetResolved),
+        Message::AutoCloseTargetResolved(target) => match target {
+            Some(id) => {
+                tracing::info!("e2e harness: closing the window after the configured delay");
+                // Reuse the exact path the window close button takes, so the
+                // harness proves clean shutdown rather than a forced exit.
+                update(state, Message::CloseRequested { id })
+            }
+            None => {
+                tracing::warn!("e2e harness: auto-close requested but no window is open");
+                Task::none()
+            }
+        },
     }
+}
+
+/// Theme configured for the main window (spec: empty-main-window).
+pub fn theme(_state: &MainWindow) -> Theme {
+    WINDOW_THEME
 }
 
 /// View function: renders the empty main window with placeholder navigation.
 pub fn view(_state: &MainWindow) -> Element<'_, Message> {
     let nav = column![
-        text("Placeholder navigation").size(18),
-        text("Reserved for the future main window.").size(14),
+        text(PLACEHOLDER_NAV_TITLE).size(18),
+        text(PLACEHOLDER_NAV_HINT).size(14),
     ]
     .spacing(10)
     .align_x(Alignment::Center);
@@ -206,7 +267,15 @@ pub fn subscription(state: &MainWindow) -> Subscription<Message> {
 
     let focus_requests = time::every(FOCUS_POLL_INTERVAL).map(|_| Message::PollFocusRequest);
 
-    Subscription::batch([window_events, focus_requests])
+    match auto_close_delay() {
+        // The harness is armed: close once after the configured delay.
+        Some(delay) => Subscription::batch([
+            window_events,
+            focus_requests,
+            time::every(delay).map(|_| Message::AutoCloseRequested),
+        ]),
+        None => Subscription::batch([window_events, focus_requests]),
+    }
 }
 
 /// Build a window state backed by an explicit user data directory.
@@ -353,6 +422,77 @@ mod tests {
         );
 
         assert!(state.closing);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn auto_close_is_disarmed_by_missing_or_invalid_values() {
+        // A malformed value must never turn a normal run into a self-closing
+        // one, so every unusable input leaves the harness disarmed.
+        assert_eq!(parse_auto_close(None), None);
+        assert_eq!(parse_auto_close(Some("")), None);
+        assert_eq!(parse_auto_close(Some("   ")), None);
+        assert_eq!(parse_auto_close(Some("soon")), None);
+        assert_eq!(parse_auto_close(Some("-1")), None);
+        assert_eq!(parse_auto_close(Some("0")), None);
+    }
+
+    #[test]
+    fn auto_close_reads_a_millisecond_delay() {
+        assert_eq!(
+            parse_auto_close(Some("2500")),
+            Some(Duration::from_millis(2500))
+        );
+        assert_eq!(
+            parse_auto_close(Some(" 150 ")),
+            Some(Duration::from_millis(150))
+        );
+    }
+
+    #[test]
+    fn the_configured_theme_is_the_light_theme() {
+        let dir = tmp_dir();
+        let _ = fs::remove_dir_all(&dir);
+        let state = test_window(&dir);
+
+        assert_eq!(theme(&state), WINDOW_THEME);
+        assert_eq!(WINDOW_THEME, Theme::Light);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_harness_without_a_window_keeps_the_instance_running() {
+        let dir = tmp_dir();
+        let _ = fs::remove_dir_all(&dir);
+        let mut state = test_window(&dir);
+
+        let _task = update(&mut state, Message::AutoCloseTargetResolved(None));
+
+        assert!(
+            !state.closing,
+            "the harness must not mark the window as closing when there is no window"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_harness_tick_resolves_the_window_before_closing() {
+        let dir = tmp_dir();
+        let _ = fs::remove_dir_all(&dir);
+        let mut state = test_window(&dir);
+
+        // The tick only resolves which window to close; the close itself is
+        // the same path the close button takes and is proven end-to-end by the
+        // suite that runs the shipped binary.
+        let _task = update(&mut state, Message::AutoCloseRequested);
+
+        assert!(
+            !state.closing,
+            "an unresolved tick must not mark the window as closing"
+        );
 
         let _ = fs::remove_dir_all(&dir);
     }

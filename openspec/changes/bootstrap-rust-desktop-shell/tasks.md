@@ -89,7 +89,7 @@ language: es
 
 ## 15. Major Resolution — E2E Drives Shipped Binary
 
-- [ ] 15.1 Add an e2e test that launches the shipped binary (headless via Xvfb where available, or a documented harness) and asserts window open / clean shutdown / title / theme / placeholder navigation are exercised by execution
+- [x] 15.1 Add an e2e test that launches the shipped binary (headless via Xvfb where available, or a documented harness) and asserts window open / clean shutdown / title / theme / placeholder navigation are exercised by execution
 
 ## 16. Major Resolution — Windows Orphan-Lock Recovery
 

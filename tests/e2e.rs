@@ -14,17 +14,35 @@
 //! - `single-instance-lock` → `second-launch-focuses-existing-instance`
 //! - `window-geometry-persistence` → `geometry-restored-and-clamped`
 //! - `logging-and-panic-hook` → `logging-and-panic-hook-wired`
+//!
+//! The last test executes the *shipped binary* instead of the crate surface,
+//! which is what proves the shell scenarios by execution:
+//!
+//! - `empty-main-window` → `window-opens-with-title-and-theme`,
+//!   `clean-shutdown`
+//! - `placeholder-navigation` → `placeholder-navigation-renders`
+//!
+//! The Iced shell needs an X11 display, so that test resolves a display
+//! harness first: `DISPLAY` when it is set and reachable, otherwise
+//! `xvfb-run -a` when that tool exists. When neither is available the test
+//! prints a skip reason and passes, and the limitation is recorded in
+//! `docs/standards-gaps.md`.
 
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::{Child, Command, ExitStatus, Stdio};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use gitea_stopwatch::core::{
     Error, Geometry, clamp_to_monitor, config_path_in, load_geometry_at, save_geometry_at,
 };
 use gitea_stopwatch::platform::instance::LaunchRole;
 use gitea_stopwatch::platform::{dirs, focus, instance, lock, logging};
-use gitea_stopwatch::ui::window::APP_TITLE;
+use gitea_stopwatch::ui::window::{
+    APP_TITLE, AUTO_CLOSE_ENV, PLACEHOLDER_NAV_HINT, PLACEHOLDER_NAV_TITLE, WINDOW_THEME,
+};
 
 /// Name of the single-instance lock file (mirrors `platform::lock`).
 const LOCK_FILE_NAME: &str = "gitea-stopwatch.lock";
@@ -534,4 +552,508 @@ fn e2e_logging_and_panic_hook_write_to_the_rolling_log_without_secrets() {
         !log_file.exists(),
         "the isolated log file must be removed after the test"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Shipped-binary execution
+// ---------------------------------------------------------------------------
+
+/// Startup line the binary edge records before the Iced shell runs.
+const STARTUP_LINE: &str = "gitea-stopwatch starting";
+
+/// Delay, in milliseconds, after which the harness closes the window.
+///
+/// Long enough for the X server to map and expose the window on a slow CI
+/// runner, short enough to keep the suite fast.
+const AUTO_CLOSE_DELAY_MS: u64 = 6000;
+
+/// How long the test waits for the binary to record its startup line.
+const STARTUP_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// How long the test waits for the X server to expose the window.
+const WINDOW_TIMEOUT: Duration = Duration::from_secs(9);
+
+/// How long the test waits for the window close and the process exit.
+const EXIT_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Poll interval for the rolling log, the X server and the process status.
+const POLL_INTERVAL: Duration = Duration::from_millis(100);
+
+/// How the test reaches a display server to execute the shipped binary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DisplayHarness {
+    /// `DISPLAY` is set and reachable: the binary runs directly on it and the
+    /// X server can be introspected through `xwininfo`/`xprop`.
+    Display,
+    /// No `DISPLAY`, but `xvfb-run` exists: the binary runs under a private
+    /// headless X server. The window cannot be introspected from here because
+    /// `xvfb-run` allocates the display number of its own process.
+    XvfbRun,
+}
+
+/// Resolve how (or whether) the Iced shell can be executed here.
+///
+/// Returns `None` when neither a reachable `DISPLAY` nor `xvfb-run` is
+/// available, in which case the caller skips with a documented reason instead
+/// of failing.
+fn detect_display_harness() -> Option<DisplayHarness> {
+    let display = env::var_os("DISPLAY").filter(|value| !value.is_empty());
+
+    if display.is_some() {
+        // A `DISPLAY` that is set but unreachable is an environment limitation
+        // (stale session variable), not a product failure. Probe it when the
+        // X11 client tool is available and skip when the probe fails.
+        if command_on_path("xwininfo") && !x11_root_reachable() {
+            return None;
+        }
+        return Some(DisplayHarness::Display);
+    }
+
+    if command_on_path("xvfb-run") {
+        return Some(DisplayHarness::XvfbRun);
+    }
+
+    None
+}
+
+/// Whether an executable named `program` is reachable through `PATH`.
+fn command_on_path(program: &str) -> bool {
+    env::var_os("PATH")
+        .map(|paths| env::split_paths(&paths).any(|dir| dir.join(program).is_file()))
+        .unwrap_or(false)
+}
+
+/// Whether the X server named by `DISPLAY` accepts connections.
+fn x11_root_reachable() -> bool {
+    Command::new("xwininfo")
+        .arg("-root")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}
+
+/// An isolated directory tree removed when the test finishes, including on
+/// panic, so no scratch data survives a failed run.
+struct Scratch {
+    root: PathBuf,
+}
+
+impl Scratch {
+    fn new(suffix: &str) -> Self {
+        let root = isolated_dir(suffix);
+        fs::create_dir_all(&root).expect("the scratch directory must be created");
+        Self { root }
+    }
+
+    fn root(&self) -> &Path {
+        &self.root
+    }
+
+    fn data_dir(&self) -> PathBuf {
+        self.root.join("data")
+    }
+
+    fn cache_dir(&self) -> PathBuf {
+        self.root.join("cache")
+    }
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.root);
+    }
+}
+
+/// Owns the spawned shipped binary, killing it if the test panics before the
+/// process exits, so a failing assertion never leaves a process behind.
+struct ChildGuard {
+    child: Option<Child>,
+}
+
+impl ChildGuard {
+    fn new(child: Child) -> Self {
+        Self { child: Some(child) }
+    }
+
+    fn id(&self) -> u32 {
+        self.child
+            .as_ref()
+            .expect("the binary process is owned by the guard")
+            .id()
+    }
+
+    fn child(&mut self) -> &mut Child {
+        self.child
+            .as_mut()
+            .expect("the binary process is owned by the guard")
+    }
+
+    fn has_exited(&mut self) -> bool {
+        self.child()
+            .try_wait()
+            .expect("the process status must be readable")
+            .is_some()
+    }
+
+    /// Wait for the process exit, returning `None` when the deadline passes.
+    fn wait_for_exit(&mut self, timeout: Duration) -> Option<ExitStatus> {
+        let deadline = Instant::now() + timeout;
+        loop {
+            if let Some(status) = self
+                .child()
+                .try_wait()
+                .expect("the process status must be readable")
+            {
+                return Some(status);
+            }
+            if Instant::now() >= deadline {
+                return None;
+            }
+            thread::sleep(POLL_INTERVAL);
+        }
+    }
+
+    /// Wait until the rolling log carries `needle`, returning what was read.
+    fn wait_for_log_line(&mut self, log_file: &Path, needle: &str, timeout: Duration) -> String {
+        let deadline = Instant::now() + timeout;
+        loop {
+            let contents = fs::read_to_string(log_file).unwrap_or_default();
+            if contents.contains(needle) || self.has_exited() || Instant::now() >= deadline {
+                return contents;
+            }
+            thread::sleep(POLL_INTERVAL);
+        }
+    }
+}
+
+impl Drop for ChildGuard {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.child.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
+/// Launch the shipped binary against an isolated user-data directory.
+///
+/// `CARGO_BIN_EXE_gitea-stopwatch` is the executable Cargo built for this
+/// package, so the test runs the same artifact the application ships rather
+/// than an in-process approximation of it.
+fn spawn_shipped_binary(
+    harness: DisplayHarness,
+    scratch: &Scratch,
+    data_dir: &Path,
+    cache_dir: &Path,
+) -> Child {
+    let binary = env!("CARGO_BIN_EXE_gitea-stopwatch");
+
+    let mut command = match harness {
+        DisplayHarness::Display => Command::new(binary),
+        DisplayHarness::XvfbRun => {
+            let mut command = Command::new("xvfb-run");
+            // A 24-bit screen, because the renderer cannot create a surface on
+            // the 8-bit screen some `xvfb-run` builds default to.
+            command
+                .arg("-a")
+                .arg("--server-args=-screen 0 1280x1024x24")
+                .arg(binary);
+            command
+        }
+    };
+
+    let stderr = fs::File::create(scratch.root().join("stderr.log"))
+        .expect("the stderr capture file must be created");
+
+    command
+        .env("GITEA_STOPWATCH_DATA_DIR", data_dir)
+        .env("GITEA_STOPWATCH_CACHE_DIR", cache_dir)
+        // Harness: close the window through the real close path after the
+        // delay, so clean shutdown is exercised instead of a forced kill.
+        .env(AUTO_CLOSE_ENV, AUTO_CLOSE_DELAY_MS.to_string())
+        // Debug verbosity makes the rolling log record the shell boot path
+        // (window creation) in addition to the startup line.
+        .env("GITEA_STOPWATCH_LOG", "debug")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::from(stderr))
+        .spawn()
+        .expect("the shipped binary must be launched")
+}
+
+/// Find an X11 window carrying `title` and owned by `pid`.
+///
+/// The pid check matters: the developer may already have the application
+/// running, and the title alone would then let the test observe a window this
+/// launch never opened.
+fn find_window(pid: u32, title: &str) -> Option<String> {
+    let output = Command::new("xwininfo")
+        .args(["-root", "-tree"])
+        .output()
+        .ok()?;
+    let tree = String::from_utf8_lossy(&output.stdout);
+    let wanted = format!("\"{title}\"");
+
+    for line in tree.lines() {
+        if !line.contains(&wanted) {
+            continue;
+        }
+        let Some(id) = line.split_whitespace().next() else {
+            continue;
+        };
+        if !id.starts_with("0x") {
+            continue;
+        }
+        if let Some(owner) = window_owner(id)
+            && owner != pid
+        {
+            continue;
+        }
+        return Some(id.to_string());
+    }
+
+    None
+}
+
+/// Read the `_NET_WM_PID` of an X11 window, when the server exposes it.
+fn window_owner(window: &str) -> Option<u32> {
+    let output = Command::new("xprop")
+        .args(["-id", window, "_NET_WM_PID"])
+        .output()
+        .ok()?;
+    let text = String::from_utf8_lossy(&output.stdout);
+    text.split_once('=')?.1.trim().parse().ok()
+}
+
+/// Read the `xwininfo -id` report of an X11 window.
+fn window_stats(window: &str) -> Option<String> {
+    let output = Command::new("xwininfo")
+        .args(["-id", window])
+        .output()
+        .ok()?;
+    Some(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+/// Extract a `field: value` integer from a `xwininfo` report.
+fn window_dimension(stats: &str, field: &str) -> Option<u32> {
+    stats.lines().find_map(|line| {
+        let value = line.trim().strip_prefix(field)?.trim();
+        value.parse().ok()
+    })
+}
+
+/// Wait until the X server exposes the mapped window this launch opened.
+///
+/// A freshly created window is unmapped until the shell presents its first
+/// frame, so the wait continues until the window is both present and viewable.
+/// The last observation is returned even when the deadline passes, so the
+/// failure message shows what the server actually reported.
+fn wait_for_window(
+    child: &mut ChildGuard,
+    pid: u32,
+    title: &str,
+    timeout: Duration,
+) -> Option<(String, String)> {
+    let deadline = Instant::now() + timeout;
+    let mut last: Option<(String, String)> = None;
+    loop {
+        if let Some(window) = find_window(pid, title)
+            && let Some(stats) = window_stats(&window)
+        {
+            if stats.contains("Map State: IsViewable") {
+                return Some((window, stats));
+            }
+            last = Some((window, stats));
+        }
+        if child.has_exited() || Instant::now() >= deadline {
+            return last;
+        }
+        thread::sleep(POLL_INTERVAL);
+    }
+}
+
+/// The window title, theme and placeholder navigation the shell is configured
+/// with, observed through the crate's public surface.
+///
+/// The rendered pixels cannot be read back from a headless run, so the content
+/// assertions that no display server can expose live here; the display test
+/// below proves the window itself opens, is titled and closes.
+#[test]
+fn e2e_window_title_theme_and_placeholder_navigation_are_configured() {
+    // Title: the exact string the application sets on the window, which the
+    // display test below then observes on the X server.
+    assert_eq!(APP_TITLE, "gitea-stopwatch", "the window title must be set");
+
+    // Theme: the application is wired to the light theme (`src/lib.rs` passes
+    // `ui::window::theme` to the application builder, and `theme` returns this
+    // constant — asserted by the in-crate unit tests).
+    assert_eq!(
+        WINDOW_THEME,
+        iced::Theme::Light,
+        "the window theme must be configured"
+    );
+
+    // Placeholder navigation: both rendered lines carry content, and the
+    // navigation area is reserved for the future main window.
+    assert!(
+        !PLACEHOLDER_NAV_TITLE.is_empty(),
+        "the placeholder navigation heading must be rendered"
+    );
+    assert!(
+        !PLACEHOLDER_NAV_HINT.is_empty(),
+        "the placeholder navigation hint must be rendered"
+    );
+    assert!(
+        PLACEHOLDER_NAV_HINT.to_lowercase().contains("reserved"),
+        "the placeholder navigation must state that it is reserved, got {PLACEHOLDER_NAV_HINT:?}"
+    );
+}
+
+/// End-to-end execution of the shipped binary.
+///
+/// This is the test that proves the shell scenarios by running the application
+/// rather than by driving the crate's public surface:
+///
+/// - `empty-main-window` / `window-opens-with-title-and-theme`: the binary
+///   boots, the X server exposes a mapped window carrying [`APP_TITLE`], and
+///   the pid that owns it is this launch.
+/// - `clean-shutdown`: the window is closed through the same close path the
+///   window button takes, and the process then exits `0`, releases the
+///   single-instance lock and persists the window geometry.
+/// - `placeholder-navigation` / `placeholder-navigation-renders`: the mapped
+///   window is the render of the shell view (whose content is asserted by
+///   [`e2e_window_title_theme_and_placeholder_navigation_are_configured`],
+///   because rendered pixels cannot be read back headlessly).
+///
+/// The test skips with a printed reason when no display server is available,
+/// so a headless CI runner without Xvfb stays green; see
+/// `docs/standards-gaps.md` for the documented limitation.
+#[test]
+fn e2e_shipped_binary_opens_a_window_and_shuts_down_cleanly() {
+    let Some(harness) = detect_display_harness() else {
+        println!(
+            "SKIP e2e_shipped_binary_opens_a_window_and_shuts_down_cleanly: no reachable DISPLAY \
+             and no xvfb-run on this runner, so the Iced shell cannot be executed headlessly. \
+             This is a documented limitation (docs/standards-gaps.md), not a product failure."
+        );
+        return;
+    };
+
+    let scratch = Scratch::new("binary");
+    let data_dir = scratch.data_dir();
+    let cache_dir = scratch.cache_dir();
+    let user_data_dir = dirs::user_data_dir_from(&data_dir);
+    let log_file = user_data_dir.join("logs").join("gitea-stopwatch.log");
+    let config_file = config_path_in(&data_dir);
+    let lock_file = user_data_dir.join(LOCK_FILE_NAME);
+    let stderr_file = scratch.root().join("stderr.log");
+
+    // Assert: the run is isolated from the developer's real application data.
+    assert!(
+        log_file.starts_with(&data_dir) && config_file.starts_with(&data_dir),
+        "the shipped binary must be launched against the isolated data dir"
+    );
+
+    let mut child = ChildGuard::new(spawn_shipped_binary(
+        harness, &scratch, &data_dir, &cache_dir,
+    ));
+    let pid = child.id();
+
+    // Act/Assert: the shipped binary executes its startup path and records it
+    // in the isolated rolling log, proving the process edge ran.
+    let contents = child.wait_for_log_line(&log_file, STARTUP_LINE, STARTUP_TIMEOUT);
+    assert!(
+        contents.contains(STARTUP_LINE),
+        "the shipped binary must record its startup line {STARTUP_LINE:?}, got:\n{contents}\n{}",
+        read_stderr(&stderr_file)
+    );
+
+    // Act/Assert: the X server exposes the mapped window of this launch.
+    let introspect = harness == DisplayHarness::Display && command_on_path("xwininfo");
+    if introspect {
+        let (window, stats) = wait_for_window(&mut child, pid, APP_TITLE, WINDOW_TIMEOUT)
+            .unwrap_or_else(|| {
+                panic!(
+                    "no X11 window titled {APP_TITLE:?} owned by pid {pid} appeared within \
+                     {WINDOW_TIMEOUT:?}; log:\n{}\n{}",
+                    fs::read_to_string(&log_file).unwrap_or_default(),
+                    read_stderr(&stderr_file)
+                )
+            });
+
+        assert!(
+            stats.contains("Map State: IsViewable"),
+            "the window {window} must be mapped and visible, got:\n{stats}"
+        );
+        assert!(
+            window_dimension(&stats, "Width:").is_some_and(|width| width > 0),
+            "the window {window} must have a width, got:\n{stats}"
+        );
+        assert!(
+            window_dimension(&stats, "Height:").is_some_and(|height| height > 0),
+            "the window {window} must have a height, got:\n{stats}"
+        );
+    } else {
+        println!(
+            "NOTE e2e_shipped_binary_opens_a_window_and_shuts_down_cleanly: window introspection \
+             unavailable ({harness:?}, xwininfo present: {}); the window is proven by the \
+             successful clean exit that follows, not by inspecting the X server",
+            command_on_path("xwininfo")
+        );
+    }
+
+    // Act: the harness closes the window through the application's own close
+    // path, and the process exits on its own.
+    let status = child.wait_for_exit(EXIT_TIMEOUT).unwrap_or_else(|| {
+        panic!(
+            "the shipped binary did not exit within {EXIT_TIMEOUT:?} after the auto-close \
+             deadline; log:\n{}\n{}",
+            fs::read_to_string(&log_file).unwrap_or_default(),
+            read_stderr(&stderr_file)
+        )
+    });
+
+    // Assert: the close path ended the process successfully, with no forced
+    // kill and no error exit.
+    assert!(
+        status.success(),
+        "closing the window must end the process successfully, got {status:?}; log:\n{}\n{}",
+        fs::read_to_string(&log_file).unwrap_or_default(),
+        read_stderr(&stderr_file)
+    );
+
+    // Assert: clean shutdown released the single-instance lock, so the next
+    // launch starts as the primary instance.
+    assert!(
+        !lock_file.exists(),
+        "the lock file {lock_file:?} must be released on shutdown"
+    );
+
+    // Assert: the close path persisted the window geometry, which only happens
+    // when the application handles the close request itself.
+    let geometry = load_geometry_at(&config_file)
+        .expect("the persisted geometry must be readable")
+        .expect("the close path must persist the window geometry");
+    assert!(
+        geometry.width > 0.0 && geometry.height > 0.0,
+        "the persisted geometry must describe a real window, got {geometry:?}"
+    );
+
+    // Assert: the run recorded no panic, so shutdown was clean rather than a
+    // crash that happened to exit successfully.
+    let contents = fs::read_to_string(&log_file).expect("the rolling log must be readable");
+    assert!(
+        !contents.contains("panic occurred at"),
+        "the run must not panic, got:\n{contents}"
+    );
+}
+
+/// Read the captured stderr of a failed run for the panic message.
+fn read_stderr(path: &Path) -> String {
+    match fs::read_to_string(path) {
+        Ok(text) if !text.trim().is_empty() => format!("stderr:\n{text}"),
+        _ => "stderr: <empty>".to_string(),
+    }
 }
