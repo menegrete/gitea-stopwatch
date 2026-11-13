@@ -31,7 +31,7 @@
       "capture_command": "LLVM_COV_FLAGS='-ignore-filename-regex=(^|/)src/((main|lib)\\.rs|ui/)' nsoft-specboot collect bootstrap-rust-desktop-shell",
       "reproducible_run": "LLVM_COV_FLAGS='-ignore-filename-regex=(^|/)src/((main|lib)\\.rs|ui/)' cargo llvm-cov --lcov --output-path coverage/lcov.info",
       "report_contents": "coverage/lcov.info carries only src/core/** and src/platform/** records",
-      "ci_note": "The CI coverage stage wires the same scope explicitly into its cargo llvm-cov invocation so the gate is enforced outside the capture run as well."
+      "ci_note": "The CI coverage stage wires the same scope explicitly into its cargo llvm-cov invocation and enforces the gate with --fail-under-lines 90 --fail-under-functions 90 on both matrix operating systems, so the gate is enforced outside the capture run as well. It writes the exclusion as LLVM_COV_FLAGS='-ignore-filename-regex=(^|[\\\\/])src[\\\\/]((main|lib)\\.rs|ui[\\\\/])' because llvm-cov emits backslash-separated paths on Windows; the excluded set (src/main.rs, src/lib.rs, src/ui/**) and the 90 % threshold are identical to the capture configuration."
     },
     "tool": "cargo-llvm-cov 0.9.1",
     "format": "lcov",

@@ -85,7 +85,7 @@ language: es
 
 ## 14. Major Resolution — CI Coverage Stage
 
-- [ ] 14.1 Add the coverage stage (`cargo llvm-cov --lcov`) to `.github/workflows/ci.yml`, enforcing the documented coverage scope/threshold consistent with group 11
+- [x] 14.1 Add the coverage stage (`cargo llvm-cov --lcov`) to `.github/workflows/ci.yml`, enforcing the documented coverage scope/threshold consistent with group 11
 
 ## 15. Major Resolution — E2E Drives Shipped Binary
 
