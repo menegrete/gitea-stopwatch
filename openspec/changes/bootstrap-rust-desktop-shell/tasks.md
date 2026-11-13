@@ -91,7 +91,7 @@ language: es
 
 - [x] 15.1 Add an e2e test that launches the shipped binary (headless via Xvfb where available, or a documented harness) and asserts window open / clean shutdown / title / theme / placeholder navigation are exercised by execution
 
-## 16. Major Resolution — Windows Orphan-Lock Recovery
+## 16. Major Resolution — Cross-Platform Orphan-Lock Recovery
 
 - [x] 16.1 Implement cross-platform process-liveness check for orphan-lock recovery (`is_process_alive` must not assume alive on non-Linux: Linux and Windows both resolve it through the safe `sysinfo` process table) and make the liveness tests platform-neutral so `cargo test --all-targets` passes on both CI operating systems
 
@@ -101,6 +101,6 @@ language: es
 
 ## 18. Minor Resolution — Toolchain, Release Profile, Lints
 
-- [ ] 18.1 Pin the toolchain to a specific version in `rust-toolchain.toml` and add a `[profile.release]` section to `Cargo.toml`
-- [ ] 18.2 Populate `clippy.toml`/`rustfmt.toml` and add crate-root lint denies in `src/lib.rs`/`src/main.rs`
-- [ ] 18.3 Document the two Warnings (branch-protection server-side, Playwright SKIPPED) in `docs/standards-gaps.md`
+- [x] 18.1 Pin the toolchain to a specific version in `rust-toolchain.toml` and add a `[profile.release]` section to `Cargo.toml`
+- [x] 18.2 Populate `clippy.toml`/`rustfmt.toml` and add crate-root lint denies in `src/lib.rs`/`src/main.rs`
+- [x] 18.3 Document the two Warnings (branch-protection server-side, Playwright SKIPPED) in `docs/standards-gaps.md`

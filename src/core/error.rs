@@ -1,3 +1,5 @@
+//! Typed domain errors shared by the core, platform, and interface layers.
+
 use thiserror::Error;
 
 /// Typed domain errors for the gitea-stopwatch crate.
@@ -7,26 +9,46 @@ use thiserror::Error;
 /// body.
 #[derive(Error, Debug)]
 pub enum Error {
+    /// The configuration file exists but could not be read.
     #[error("failed to read configuration at {path}: {source}")]
     ConfigRead {
+        /// Absolute path of the configuration file that failed to read.
         path: String,
+        /// Underlying I/O failure that prevented the read.
         source: std::io::Error,
     },
+    /// The configuration file was read but its contents could not be parsed.
     #[error("failed to parse configuration at {path}: {message}")]
-    ConfigParse { path: String, message: String },
+    ConfigParse {
+        /// Absolute path of the configuration file that failed to parse.
+        path: String,
+        /// Parser diagnostic describing the malformed content.
+        message: String,
+    },
+    /// The platform user data directory could not be resolved.
     #[error("failed to resolve the user data directory")]
     UserDataDir,
+    /// The platform cache directory could not be resolved.
     #[error("failed to resolve the cache directory")]
     CacheDir,
+    /// Logging could not be initialized at the resolved path.
     #[error("failed to initialize logging at {path}: {source}")]
     LoggingInit {
+        /// Absolute path of the log directory or file that failed.
         path: String,
+        /// Underlying I/O failure that prevented initialization.
         source: std::io::Error,
     },
+    /// A platform operation failed; the operation name identifies which one.
     #[error("platform operation '{operation}' failed")]
-    Platform { operation: String },
+    Platform {
+        /// Name of the platform operation that failed.
+        operation: String,
+    },
+    /// An I/O operation failed outside a more specific variant.
     #[error("I/O failure: {source}")]
     Io {
+        /// Underlying I/O failure.
         #[from]
         source: std::io::Error,
     },

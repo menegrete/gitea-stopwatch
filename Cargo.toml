@@ -18,3 +18,19 @@ thiserror = "1"
 # `tracing` facade only: the rolling-file subscriber lives in
 # `platform::logging` so the log stays a bounded local file.
 tracing = "0.1"
+
+# Release build: explicit, reproducible settings rather than relying on the
+# defaults. Thin LTO plus one codegen unit favours the shipped binary size and
+# runtime over build time, and stripping symbols is safe because the panic hook
+# in `platform::logging` records the panic location and payload from
+# `PanicHookInfo` (compile-time file/line data) and never resolves symbols.
+#
+# `panic = "abort"` is deliberately NOT set: the panic hook writes the panic
+# record to the rolling log before the process unwinds, the in-module tests and
+# `tests/e2e.rs` rely on `std::panic::catch_unwind`, and aborting would make
+# release behaviour diverge from the debug profile all gates run under.
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"

@@ -33,7 +33,10 @@ pub enum LockOutcome {
     Acquired,
     /// A live process already owns the lock. `owner_pid` is the PID recorded in
     /// the lock file, when it is parseable.
-    AlreadyRunning { owner_pid: Option<u32> },
+    AlreadyRunning {
+        /// PID recorded in the lock file by the owning process, if parseable.
+        owner_pid: Option<u32>,
+    },
 }
 
 /// Tries to acquire the single-instance lock in the user data directory.

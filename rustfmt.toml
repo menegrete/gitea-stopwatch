@@ -1,0 +1,6 @@
+# Formatting configuration committed with the crate
+# (docs/standards-desktop-rust.md, Formatting and Linting). The width matches
+# the edition declared in Cargo.toml and the 100-column convention used across
+# the crate.
+edition = "2024"
+max_width = 100

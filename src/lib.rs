@@ -1,6 +1,11 @@
 //! Public API for the gitea-stopwatch desktop shell.
 
 #![forbid(unsafe_code)]
+#![deny(warnings)]
+#![deny(missing_docs)]
+#![deny(missing_debug_implementations)]
+#![deny(rust_2018_idioms)]
+#![deny(unused_must_use)]
 
 pub mod core;
 pub mod platform;

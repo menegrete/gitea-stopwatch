@@ -85,6 +85,7 @@ pub enum FocusStatus {
 }
 
 /// The empty main window application state.
+#[derive(Debug)]
 pub struct MainWindow {
     /// Current window geometry (size and position).
     geometry: Geometry,
@@ -126,20 +127,31 @@ impl MainWindow {
 #[derive(Debug, Clone)]
 pub enum Message {
     /// The user requested to close the window, carrying the window id.
-    CloseRequested { id: window::Id },
+    CloseRequested {
+        /// Identifier of the window the close request applies to.
+        id: window::Id,
+    },
     /// A placeholder navigation item was activated (no-op for now).
     PlaceholderNavActivated,
     /// The window was resized, carrying the new size.
-    Resized { size: iced::Size },
+    Resized {
+        /// New logical size of the window.
+        size: iced::Size,
+    },
     /// The window was moved, carrying the new position.
-    Moved { position: iced::Point },
+    Moved {
+        /// New logical position of the window.
+        position: iced::Point,
+    },
     /// The runtime resolved which window, if any, carries the restored
     /// geometry.
     WindowResolved(Option<window::Id>),
     /// The runtime reported the logical size of the monitor containing the
     /// window, if the platform can report one.
     MonitorResolved {
+        /// Identifier of the window the monitor report applies to.
         id: window::Id,
+        /// Logical size of the containing monitor, when the platform reports it.
         size: Option<iced::Size>,
     },
     /// Timer tick: look for a focus request left by a second launch.

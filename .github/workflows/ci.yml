@@ -24,8 +24,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Keep this ref in sync with the `channel` pin in rust-toolchain.toml so
+      # both CI legs and local builds use the same compiler release.
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.100.0
         with:
           components: rustfmt, clippy, llvm-tools-preview
 
@@ -40,6 +42,13 @@ jobs:
 
       - name: Run clippy
         run: cargo clippy --all-targets -- -D warnings
+
+      # The e2e target launches the shipped binary; on the headless Ubuntu
+      # runner that needs a virtual display server (`xvfb-run`), otherwise the
+      # test skips with a printed reason.
+      - name: Install Xvfb
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb
 
       - name: Run tests
         run: cargo test --all-targets

@@ -98,6 +98,7 @@ fn level_from_env() -> LevelFilter {
 /// next write would exceed `max_size` (size rotation). Archived files are named
 /// `<prefix>.log.<timestamp>` and only the most recent `max_files - 1` archives
 /// are retained, keeping the total on-disk footprint bounded.
+#[derive(Debug)]
 pub struct RollingFileWriter {
     dir: PathBuf,
     prefix: String,
@@ -110,6 +111,10 @@ pub struct RollingFileWriter {
 }
 
 impl RollingFileWriter {
+    /// Creates the log directory and returns a writer for `<dir>/<prefix>.log`.
+    ///
+    /// `max_size` is the rotation threshold in bytes and `max_files` bounds the
+    /// number of archived files retained next to the active log.
     pub fn new(dir: &Path, prefix: &str, max_size: u64, max_files: usize) -> Result<Self> {
         fs::create_dir_all(dir)?;
         let path = dir.join(format!("{}{}", prefix, LOG_EXTENSION));

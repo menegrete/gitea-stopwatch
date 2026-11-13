@@ -1,3 +1,5 @@
+//! Platform directories: the per-user data, configuration, and cache roots.
+
 use std::path::{Path, PathBuf};
 
 use crate::core::{Error, Result};
