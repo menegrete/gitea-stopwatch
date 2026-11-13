@@ -26,6 +26,7 @@
     "format": "lcov",
     "report_path": "coverage/lcov.info",
     "status": "below_target",
-    "note": "The 90% gate applies to core/ and platform/ pure logic, which now measures 96.49% lines and 92.86% functions (unit_testable_scope.status = at_or_above_target). The overall project percentage (87.71% lines, 84.13% functions) is below the target and is reported as a trend, not a hard CI gate, until feature work begins (design D6): the Iced UI layer, the application loop and the binary edge cannot be unit-tested without a display server."
+    "note": "The 90% gate applies to core/ and platform/ pure logic, which now measures 96.49% lines and 92.86% functions (unit_testable_scope.status = at_or_above_target). The overall project percentage (87.71% lines, 84.13% functions) is below the target and is reported as a trend, not a hard CI gate, until feature work begins (design D6): the Iced UI layer, the application loop and the binary edge cannot be unit-tested without a display server.",
+    "sonarqube_gate_note": "The SonarQube quality gate reports PASS because the gate conditions configured on the server carry no hard 90% coverage threshold during the bootstrap phase; coverage is a trend until feature work begins (design D6). The 90% target applies to the unit-testable scope recorded in unit_testable_scope (96.49% lines, 92.86% functions). sonar-project.properties declares analysis inputs only and holds no gate threshold, so the gate result is not evidence that the overall project percentage met the target. Rationale documented in docs/project-context.md."
   }
 }

@@ -66,5 +66,5 @@ language: es
 
 ## 10. Review Findings Resolution — Warnings
 
-- [ ] 10.1 Document SonarQube quality gate configuration rationale (gate PASS with coverage trend)
-- [ ] 10.2 Improve evidence capture documentation for implementation verification
+- [x] 10.1 Document SonarQube quality gate configuration rationale (gate PASS with coverage trend)
+- [x] 10.2 Improve evidence capture documentation for implementation verification
