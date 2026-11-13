@@ -20,8 +20,8 @@
       "metrics": {
         "statements": null,
         "branches": 100,
-        "functions": 96.34,
-        "lines": 96.93,
+        "functions": 96.3,
+        "lines": 96.91,
         "thresholds": {
           "statements": 90,
           "branches": 90,
@@ -39,6 +39,6 @@
     }
   ],
   "evidenceFiles": {
-    "e2e": "2026-11-13_09-27-38_T01_e2e.txt"
+    "e2e": "2026-11-13_09-53-03_T01_e2e.txt"
   }
 }
