@@ -55,8 +55,8 @@ language: es
 
 ## 8. Review Findings Resolution — Coverage (Major)
 
-- [ ] 8.1 Add unit tests to improve coverage toward 90% threshold for core/ and platform/ modules
-- [ ] 8.2 Document coverage-as-trend rationale per design D6 until feature work begins
+- [x] 8.1 Add unit tests to improve coverage toward 90% threshold for core/ and platform/ modules
+- [x] 8.2 Document coverage-as-trend rationale per design D6 until feature work begins
 
 ## 9. Review Findings Resolution — E2E Scope (Major)
 

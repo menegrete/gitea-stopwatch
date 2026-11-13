@@ -7,6 +7,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use std::path::Path;
+
 use crate::core::{Error, Result};
 use crate::platform::dirs;
 
@@ -51,12 +53,12 @@ fn config_path() -> Result<std::path::PathBuf> {
     Ok(dirs::user_data_dir()?.join(CONFIG_FILE_NAME))
 }
 
-/// Load persisted geometry from the configuration file.
+/// Load persisted geometry from a specific configuration file.
 ///
-/// Returns `Ok(None)` if no configuration file exists yet.
-pub fn load_geometry() -> Result<Option<Geometry>> {
-    let path = config_path()?;
-    match std::fs::read_to_string(&path) {
+/// Split from [`load_geometry`] so the file logic is unit-testable against a
+/// temporary path instead of the developer's real application data directory.
+fn load_geometry_at(path: &Path) -> Result<Option<Geometry>> {
+    match std::fs::read_to_string(path) {
         Ok(contents) => {
             let config: Config =
                 serde_json::from_str(&contents).map_err(|e| Error::ConfigParse {
@@ -73,9 +75,18 @@ pub fn load_geometry() -> Result<Option<Geometry>> {
     }
 }
 
-/// Save geometry to the configuration file.
-pub fn save_geometry(geometry: Geometry) -> Result<()> {
-    let path = config_path()?;
+/// Load persisted geometry from the configuration file.
+///
+/// Returns `Ok(None)` if no configuration file exists yet.
+pub fn load_geometry() -> Result<Option<Geometry>> {
+    load_geometry_at(&config_path()?)
+}
+
+/// Save geometry to a specific configuration file.
+///
+/// Split from [`save_geometry`] so the file logic is unit-testable against a
+/// temporary path instead of the developer's real application data directory.
+fn save_geometry_at(path: &Path, geometry: Geometry) -> Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -84,10 +95,15 @@ pub fn save_geometry(geometry: Geometry) -> Result<()> {
         path: path.to_string_lossy().to_string(),
         message: e.to_string(),
     })?;
-    std::fs::write(&path, contents).map_err(|e| Error::ConfigRead {
+    std::fs::write(path, contents).map_err(|e| Error::ConfigRead {
         path: path.to_string_lossy().to_string(),
         source: e,
     })
+}
+
+/// Save geometry to the configuration file.
+pub fn save_geometry(geometry: Geometry) -> Result<()> {
+    save_geometry_at(&config_path()?, geometry)
 }
 
 /// Clamp geometry so the window fits within the monitor bounds.
@@ -118,6 +134,26 @@ pub fn clamp_to_monitor(geometry: Geometry, monitor_size: Option<(f64, f64)>) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use std::fs;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    /// Monotonic counter for unique per-test temp directories (tests run in parallel).
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+
+    fn tmp_dir() -> PathBuf {
+        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+        std::env::temp_dir().join(format!(
+            "gitea-stopwatch-config-test-{}-{}",
+            std::process::id(),
+            n
+        ))
+    }
+
+    fn tmp_config_path() -> PathBuf {
+        tmp_dir().join(CONFIG_FILE_NAME)
+    }
 
     #[test]
     fn default_geometry_has_sensible_values() {
@@ -157,5 +193,159 @@ mod tests {
         };
         let clamped = clamp_to_monitor(geometry, Some((1920.0, 1080.0)));
         assert_eq!(clamped, geometry);
+    }
+
+    #[test]
+    fn clamp_to_monitor_enforces_minimum_size() {
+        let geometry = Geometry {
+            width: 10.0,
+            height: 20.0,
+            x: 0.0,
+            y: 0.0,
+        };
+        let clamped = clamp_to_monitor(geometry, Some((1920.0, 1080.0)));
+        assert_eq!(clamped.width, 100.0);
+        assert_eq!(clamped.height, 100.0);
+    }
+
+    #[test]
+    fn clamp_to_monitor_tiny_monitor_keeps_minimum_size_visible() {
+        // A monitor smaller than the minimum window size cannot satisfy both
+        // constraints; the minimum size wins over the monitor bound.
+        let geometry = Geometry {
+            width: 50.0,
+            height: 50.0,
+            x: 0.0,
+            y: 0.0,
+        };
+        let clamped = clamp_to_monitor(geometry, Some((50.0, 50.0)));
+        assert_eq!(clamped.width, 100.0);
+        assert_eq!(clamped.height, 100.0);
+        assert_eq!(clamped.x, 0.0);
+        assert_eq!(clamped.y, 0.0);
+    }
+
+    #[test]
+    fn clamp_to_monitor_pulls_offscreen_position_back() {
+        let geometry = Geometry {
+            width: 800.0,
+            height: 600.0,
+            x: 5000.0,
+            y: 5000.0,
+        };
+        let clamped = clamp_to_monitor(geometry, Some((1920.0, 1080.0)));
+        assert_eq!(clamped.x, 1920.0 - 800.0);
+        assert_eq!(clamped.y, 1080.0 - 600.0);
+    }
+
+    #[test]
+    fn load_geometry_at_returns_none_when_file_is_missing() {
+        let path = tmp_config_path();
+        let _ = fs::remove_dir_all(path.parent().unwrap());
+        assert_eq!(load_geometry_at(&path).unwrap(), None);
+    }
+
+    #[test]
+    fn save_then_load_geometry_round_trips() {
+        let path = tmp_config_path();
+        let _ = fs::remove_dir_all(path.parent().unwrap());
+        let geometry = Geometry {
+            width: 1024.0,
+            height: 768.0,
+            x: 32.0,
+            y: 64.0,
+        };
+
+        save_geometry_at(&path, geometry).unwrap();
+
+        assert!(path.exists());
+        assert_eq!(load_geometry_at(&path).unwrap(), Some(geometry));
+
+        let _ = fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn save_geometry_at_overwrites_existing_file() {
+        let path = tmp_config_path();
+        let _ = fs::remove_dir_all(path.parent().unwrap());
+        let first = Geometry::default();
+        let second = Geometry {
+            width: 640.0,
+            height: 480.0,
+            x: 10.0,
+            y: 20.0,
+        };
+
+        save_geometry_at(&path, first).unwrap();
+        save_geometry_at(&path, second).unwrap();
+
+        assert_eq!(load_geometry_at(&path).unwrap(), Some(second));
+
+        let _ = fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn load_geometry_at_reports_parse_error() {
+        let path = tmp_config_path();
+        let _ = fs::remove_dir_all(path.parent().unwrap());
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, "this is not json").unwrap();
+
+        let err = load_geometry_at(&path).unwrap_err();
+
+        assert!(matches!(err, Error::ConfigParse { .. }));
+        assert!(
+            err.to_string()
+                .contains(&path.to_string_lossy().to_string())
+        );
+
+        let _ = fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn load_geometry_at_reports_read_error_for_non_notfound_failure() {
+        let path = tmp_config_path();
+        let _ = fs::remove_dir_all(path.parent().unwrap());
+        // A directory where a file is expected fails with an error other than
+        // NotFound, which must surface as ConfigRead rather than Ok(None).
+        fs::create_dir_all(&path).unwrap();
+
+        let err = load_geometry_at(&path).unwrap_err();
+
+        assert!(matches!(err, Error::ConfigRead { .. }));
+
+        let _ = fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn save_geometry_at_reports_error_when_parent_is_a_file() {
+        let dir = tmp_dir();
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let blocking_file = dir.join("blocking");
+        fs::write(&blocking_file, "not a directory").unwrap();
+        let path = blocking_file.join(CONFIG_FILE_NAME);
+
+        let err = save_geometry_at(&path, Geometry::default()).unwrap_err();
+
+        assert!(matches!(err, Error::Io { .. }));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn save_geometry_at_reports_write_error_when_target_is_a_directory() {
+        let dir = tmp_dir();
+        let _ = fs::remove_dir_all(&dir);
+        // The parent exists, so directory creation succeeds and the write
+        // itself fails because the target path is a directory.
+        let path = dir.join(CONFIG_FILE_NAME);
+        fs::create_dir_all(&path).unwrap();
+
+        let err = save_geometry_at(&path, Geometry::default()).unwrap_err();
+
+        assert!(matches!(err, Error::ConfigRead { .. }));
+
+        let _ = fs::remove_dir_all(&dir);
     }
 }

@@ -258,6 +258,8 @@ mod tests {
             dir.join(format!("{}{}", LOG_PREFIX, LOG_EXTENSION))
                 .exists()
         );
+
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -282,6 +284,8 @@ mod tests {
             "expected at least one archived log file"
         );
         assert!(current.exists());
+
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -309,6 +313,8 @@ mod tests {
             archives.len(),
             max_files - 1
         );
+
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -322,5 +328,123 @@ mod tests {
     fn level_display_matches_expected() {
         assert_eq!(Level::Error.to_string(), "ERROR");
         assert_eq!(Level::Info.to_string(), "INFO ");
+    }
+
+    #[test]
+    fn level_display_covers_every_variant() {
+        let rendered: Vec<String> = [
+            Level::Error,
+            Level::Warn,
+            Level::Info,
+            Level::Debug,
+            Level::Trace,
+        ]
+        .iter()
+        .map(|level| level.to_string())
+        .collect();
+        assert_eq!(rendered, vec!["ERROR", "WARN ", "INFO ", "DEBUG", "TRACE"]);
+    }
+
+    #[test]
+    fn rotate_without_existing_current_file_reopens_it() {
+        let dir = tmp_dir();
+        let _ = fs::remove_dir_all(&dir);
+        let mut writer = RollingFileWriter::new(&dir, "t", 10, 3).unwrap();
+        // Remove the current file so rotation finds nothing to archive.
+        fs::remove_file(dir.join("t.log")).unwrap();
+
+        writer.write_all(b"0123456789ABCDEF").unwrap();
+        writer.flush().unwrap();
+        drop(writer);
+
+        assert!(dir.join("t.log").exists());
+        let archives: Vec<_> = fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .filter(|s| s.starts_with("t.log."))
+            .collect();
+        assert!(
+            archives.is_empty(),
+            "nothing to archive when the current file was removed"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn rotation_prunes_archives_beyond_the_retention_bound() {
+        let dir = tmp_dir();
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        // Pre-seed sortable archives older than the retention bound.
+        for name in ["t.log.aaa", "t.log.bbb", "t.log.ccc", "t.log.ddd"] {
+            fs::write(dir.join(name), "old").unwrap();
+        }
+        let mut writer = RollingFileWriter::new(&dir, "t", 5, 3).unwrap();
+
+        writer.write_all(b"0123456789").unwrap();
+        writer.flush().unwrap();
+        drop(writer);
+
+        let archives: Vec<_> = fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .filter(|s| s.starts_with("t.log."))
+            .collect();
+        assert_eq!(
+            archives.len(),
+            2,
+            "retention keeps max_files - 1 archives, got {:?}",
+            archives
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// Installs the global logger and the panic hook for the test process.
+    ///
+    /// This is the only test that calls [`init`] so the "already installed"
+    /// branch is exercised deterministically by the second call.
+    #[test]
+    fn init_installs_logger_once_and_panic_hook_writes_to_log() {
+        let dir = tmp_dir();
+        let _ = fs::remove_dir_all(&dir);
+
+        init(&dir).expect("first init installs the global logger");
+        let rejected_dir = tmp_dir();
+        assert!(
+            init(&rejected_dir).is_err(),
+            "a second init must report the already-installed logger"
+        );
+        let _ = fs::remove_dir_all(&rejected_dir);
+
+        log(
+            Level::Warn,
+            "logging-test",
+            &[("attempt", "1")],
+            "structured line",
+        );
+
+        let borrowed = std::panic::catch_unwind(|| panic!("boom"));
+        assert!(borrowed.is_err(), "the panicking closure must unwind");
+
+        let owned = std::panic::catch_unwind(|| panic!("owned {}", 1));
+        assert!(owned.is_err(), "the formatting closure must unwind");
+
+        let non_string = std::panic::catch_unwind(|| std::panic::panic_any(42_u8));
+        assert!(non_string.is_err(), "panic_any must unwind");
+
+        let contents = fs::read_to_string(dir.join(format!("{}{}", LOG_PREFIX, LOG_EXTENSION)))
+            .expect("rolling log file should exist");
+        assert!(contents.contains("structured line"));
+        assert!(contents.contains("attempt=\"1\""));
+        assert!(contents.contains("panic occurred at"));
+        assert!(contents.contains("boom"));
+        assert!(contents.contains("owned 1"));
+        assert!(contents.contains("<non-string panic payload>"));
+
+        let _ = fs::remove_dir_all(&dir);
     }
 }

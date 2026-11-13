@@ -49,3 +49,34 @@ impl Drop for LockGuard {
         let _ = lock::release(&self.user_data_dir);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lock_guard_releases_the_lock_file_on_drop() {
+        let dir = std::env::temp_dir().join(format!(
+            "gitea-stopwatch-lock-guard-test-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        lock::acquire(&dir).unwrap();
+        let lock_path = dir.join("gitea-stopwatch.lock");
+        assert!(lock_path.exists());
+
+        {
+            let _guard = LockGuard {
+                user_data_dir: dir.clone(),
+            };
+        }
+
+        assert!(
+            !lock_path.exists(),
+            "dropping the guard must release the lock"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

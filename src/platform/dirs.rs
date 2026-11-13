@@ -77,4 +77,23 @@ mod tests {
         let dir = cache_dir().unwrap();
         assert!(dir.ends_with("gitea-stopwatch"));
     }
+
+    #[test]
+    fn namespacing_helpers_are_independent_of_the_base_directory() {
+        // Both helpers apply the same app namespace while preserving the base,
+        // so an override base always maps to a distinct namespaced directory.
+        let data_base = Path::new("/tmp/override-data");
+        let cache_base = Path::new("/tmp/override-cache");
+        assert_eq!(user_data_dir_from(data_base), data_base.join(APP_NAME));
+        assert_eq!(cache_dir_from(cache_base), cache_base.join(APP_NAME));
+        assert_ne!(user_data_dir_from(data_base), cache_dir_from(cache_base));
+    }
+
+    #[test]
+    fn user_data_dir_from_accepts_relative_bases() {
+        assert_eq!(
+            user_data_dir_from(Path::new("relative")),
+            PathBuf::from("relative").join(APP_NAME)
+        );
+    }
 }

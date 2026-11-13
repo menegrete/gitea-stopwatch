@@ -27,3 +27,7 @@ None intentional at this stage. Tracked in `docs/standards-gaps.md`: Iced core d
 ### Verification and Quality Gates
 
 CI pipeline runs on Linux and Windows: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --all-targets`, coverage via `cargo llvm-cov --lcov` with a 90 % line/function baseline (treated as a trend until feature work begins), `cargo audit` and `cargo deny check`. `tests/e2e.rs` runs against an isolated user-data directory and cleans up after execution. SonarQube scan produces a quality-gate result. Branch `main` is protected requiring PR and status checks; Dependabot opens updates for Cargo and GitHub Actions; `Swatinem/rust-cache` provides build caching with cancel-in-progress concurrency.
+
+#### Coverage Measurement Scope
+
+The 90 % line and function gate applies to the unit-testable pure logic in `src/core/` and `src/platform/` (errors, geometry clamping and persistence, directory resolution, single-instance lock, rolling log writer), which measures 96.49 % lines and 92.86 % functions. `src/ui/window.rs`, the Iced application loop in `src/lib.rs` and the binary edge in `src/main.rs` are excluded from unit coverage because they require a display server; the end-to-end target covers the shell lifecycle instead. The overall project percentage (87.71 % lines, 84.13 % functions) is therefore reported as a trend rather than a hard gate until feature work begins, per design D6.

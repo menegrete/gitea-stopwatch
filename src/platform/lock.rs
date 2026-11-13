@@ -163,4 +163,76 @@ mod tests {
     fn is_process_alive_returns_false_for_nonexistent_pid() {
         assert!(!is_process_alive(99999999));
     }
+
+    #[test]
+    fn read_owner_pid_returns_none_for_unparseable_contents() {
+        let dir = tmp_dir();
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let lock_path = dir.join(LOCK_FILE_NAME);
+        fs::write(&lock_path, "not-a-pid").unwrap();
+
+        assert_eq!(read_owner_pid(&lock_path), None);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn read_owner_pid_returns_none_when_lock_file_is_missing() {
+        let dir = tmp_dir();
+        let _ = fs::remove_dir_all(&dir);
+
+        assert_eq!(read_owner_pid(&dir.join(LOCK_FILE_NAME)), None);
+    }
+
+    #[test]
+    fn acquire_replaces_lock_file_with_unparseable_owner() {
+        let dir = tmp_dir();
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let lock_path = dir.join(LOCK_FILE_NAME);
+        fs::write(&lock_path, "garbage").unwrap();
+
+        // An unparseable owner cannot be alive, so the stale lock is replaced.
+        assert!(acquire(&dir).is_ok());
+        assert_eq!(
+            fs::read_to_string(&lock_path).unwrap().trim(),
+            std::process::id().to_string()
+        );
+
+        release(&dir).unwrap();
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn acquire_replaces_lock_file_owned_by_dead_process() {
+        let dir = tmp_dir();
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let lock_path = dir.join(LOCK_FILE_NAME);
+        // A PID that is not present in /proc can never be alive.
+        fs::write(&lock_path, "99999999").unwrap();
+
+        assert!(acquire(&dir).is_ok());
+        assert_eq!(
+            fs::read_to_string(&lock_path).unwrap().trim(),
+            std::process::id().to_string()
+        );
+
+        release(&dir).unwrap();
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn release_is_idempotent_when_lock_file_is_absent() {
+        let dir = tmp_dir();
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+
+        assert!(release(&dir).is_ok());
+        assert!(release(&dir).is_ok());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
 }

@@ -99,4 +99,20 @@ mod tests {
             "platform operation 'create_dir_all' failed"
         );
     }
+
+    #[test]
+    fn io_error_converts_via_from_and_keeps_source_message() {
+        let io = std::io::Error::new(std::io::ErrorKind::BrokenPipe, "pipe closed");
+        let err: Error = io.into();
+        assert!(matches!(err, Error::Io { .. }));
+        assert_eq!(err.to_string(), "I/O failure: pipe closed");
+    }
+
+    #[test]
+    fn io_error_source_is_preserved_for_diagnosis() {
+        let io = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied");
+        let err = Error::Io { source: io };
+        let source = std::error::Error::source(&err).expect("Io variant exposes its source");
+        assert_eq!(source.to_string(), "denied");
+    }
 }
