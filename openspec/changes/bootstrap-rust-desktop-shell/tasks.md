@@ -35,11 +35,11 @@ language: es
 
 ## 5. Endurecimiento CI (C1.5)
 
-- [ ] 5.1 Habilitar protección de la rama `main` con PR y verificaciones de estado requeridas (espec: ci-hardening, scenario branch-protection-required)
-- [ ] 5.2 Añadir Dependabot para Cargo y GitHub Actions (espec: ci-hardening, scenario dependabot-opens-updates)
-- [ ] 5.3 Añadir `Swatinem/rust-cache` y concurrencia con cancel-in-progress (espec: ci-hardening, scenario ci-uses-cache-and-cancels)
-- [ ] 5.4 Ejecutar `cargo audit` y `cargo deny` en pull requests y con programación periódica (espec: ci-hardening, scenario audit-and-deny-block-merge)
-- [ ] 5.5 Verificar que la puerta de calidad de SonarQube bloquea la fusión (espec: sonarqube-scan, scenario sonarqube-produces-quality-gate-result)
+- [x] 5.1 Habilitar protección de la rama `main` con PR y verificaciones de estado requeridas (espec: ci-hardening, scenario branch-protection-required)
+- [x] 5.2 Añadir Dependabot para Cargo y GitHub Actions (espec: ci-hardening, scenario dependabot-opens-updates)
+- [x] 5.3 Añadir `Swatinem/rust-cache` y concurrencia con cancel-in-progress (espec: ci-hardening, scenario ci-uses-cache-and-cancels)
+- [x] 5.4 Ejecutar `cargo audit` y `cargo deny` en pull requests y con programación periódica (espec: ci-hardening, scenario audit-and-deny-block-merge)
+- [x] 5.5 Verificar que la puerta de calidad de SonarQube bloquea la fusión (espec: sonarqube-scan, scenario sonarqube-produces-quality-gate-result)
 
 ## 6. Validación y documentación (pasos obligatorios §5.2)
 
