@@ -1,7 +1,9 @@
+---
 schema: nsoft-spec-driven
 artifact: tasks
 change: bootstrap-rust-desktop-shell
 language: es
+---
 
 ## 1. Paso 0 — Rama de funcionalidad (ya realizada)
 
@@ -120,9 +122,9 @@ language: es
 
 ## 22. Minor Resolution — Review Minors
 
-- [ ] 22.1 Fix stale documentation numbers (test counts, coverage figures) in docs
-- [ ] 22.2 Report coverage `branches` as null / not-applicable when the denominator is 0 instead of a misleading 100
-- [ ] 22.3 Bound the orphan-lock recovery recursion (convert to a loop or add a retry cap)
-- [ ] 22.4 Make the `LLVM_COV_FLAGS` scope regex portable/document the platform difference
-- [ ] 22.5 Add `--locked` to `cargo install` steps in CI
-- [ ] 22.6 Fix malformed `tasks.md` frontmatter (proper `---` fences) and verify `openspec status --change bootstrap-rust-desktop-shell --json` still parses
+- [x] 22.1 Fix stale documentation numbers (test counts, coverage figures) in docs
+- [x] 22.2 Report coverage `branches` as null / not-applicable when the denominator is 0 instead of a misleading 100
+- [x] 22.3 Bound the orphan-lock recovery recursion (convert to a loop or add a retry cap)
+- [x] 22.4 Make the `LLVM_COV_FLAGS` scope regex portable/document the platform difference
+- [x] 22.5 Add `--locked` to `cargo install` steps in CI
+- [x] 22.6 Fix malformed `tasks.md` frontmatter (proper `---` fences) and verify `openspec status --change bootstrap-rust-desktop-shell --json` still parses

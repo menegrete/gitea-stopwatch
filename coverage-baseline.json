@@ -2,20 +2,20 @@
   "baseline": {
     "target_lines_percent": 90,
     "target_functions_percent": 90,
-    "measured_lines_percent": 87.75,
-    "measured_functions_percent": 84.25,
-    "measured_lines_hit": 738,
-    "measured_lines_total": 841,
-    "measured_functions_hit": 107,
-    "measured_functions_total": 127,
+    "measured_lines_percent": 96.31,
+    "measured_functions_percent": 95.75,
+    "measured_lines_hit": 1542,
+    "measured_lines_total": 1601,
+    "measured_functions_hit": 203,
+    "measured_functions_total": 212,
     "unit_testable_scope": {
       "paths": ["src/core/**", "src/platform/**"],
-      "measured_lines_percent": 96.51,
-      "measured_functions_percent": 92.92,
-      "measured_lines_hit": 718,
-      "measured_lines_total": 744,
-      "measured_functions_hit": 105,
-      "measured_functions_total": 113,
+      "measured_lines_percent": 96.93,
+      "measured_functions_percent": 96.34,
+      "measured_lines_hit": 1074,
+      "measured_lines_total": 1108,
+      "measured_functions_hit": 158,
+      "measured_functions_total": 164,
       "status": "at_or_above_target"
     },
     "excluded_from_unit_coverage": {
@@ -26,18 +26,20 @@
       "scope": "src/core/ + src/platform/",
       "mechanism": "cargo-llvm-cov 0.9.1 reads no configuration file of its own and accepts the exclusion only through the --ignore-filename-regex flag, so the exclusion is injected with the LLVM_COV_FLAGS environment variable, which cargo-llvm-cov forwards verbatim to llvm-cov export. Cargo's [env] configuration is applied only to build scripts, rustc, cargo run and cargo test, never to external subcommands, so the variable cannot be carried by .cargo/config.toml.",
       "env": {
-        "LLVM_COV_FLAGS": "-ignore-filename-regex=(^|/)src/((main|lib)\\.rs|ui/)"
+        "LLVM_COV_FLAGS": "-ignore-filename-regex=(^|[\\\\/])src[\\\\/]((main|lib)\\.rs|ui[\\\\/])"
       },
-      "capture_command": "LLVM_COV_FLAGS='-ignore-filename-regex=(^|/)src/((main|lib)\\.rs|ui/)' nsoft-specboot collect bootstrap-rust-desktop-shell",
-      "reproducible_run": "LLVM_COV_FLAGS='-ignore-filename-regex=(^|/)src/((main|lib)\\.rs|ui/)' cargo llvm-cov --lcov --output-path coverage/lcov.info",
+      "capture_command": "LLVM_COV_FLAGS='-ignore-filename-regex=(^|[\\\\/])src[\\\\/]((main|lib)\\.rs|ui[\\\\/])' nsoft-specboot collect bootstrap-rust-desktop-shell",
+      "reproducible_run": "LLVM_COV_FLAGS='-ignore-filename-regex=(^|[\\\\/])src[\\\\/]((main|lib)\\.rs|ui[\\\\/])' cargo llvm-cov --lcov --output-path coverage/lcov.info",
       "report_contents": "coverage/lcov.info carries only src/core/** and src/platform/** records",
-      "ci_note": "The CI coverage stage wires the same scope explicitly into its cargo llvm-cov invocation and enforces the gate with --fail-under-lines 90 --fail-under-functions 90 on both matrix operating systems, so the gate is enforced outside the capture run as well. It writes the exclusion as LLVM_COV_FLAGS='-ignore-filename-regex=(^|[\\\\/])src[\\\\/]((main|lib)\\.rs|ui[\\\\/])' because llvm-cov emits backslash-separated paths on Windows; the excluded set (src/main.rs, src/lib.rs, src/ui/**) and the 90 % threshold are identical to the capture configuration."
+      "portability_note": "The recorded regex is separator-agnostic: [\\\\/] matches the forward slash llvm-cov emits on POSIX and the backslash it emits on Windows, so a single env value excludes the same set (src/main.rs, src/lib.rs, src/ui/**) on both CI legs. The earlier POSIX-only spelling (^|/)src/((main|lib)\\.rs|ui/) matches that identical set on Linux but would miss src\\ui\\... on Windows.",
+      "ci_note": "The CI coverage stage wires the same separator-agnostic scope into its cargo llvm-cov invocation and enforces the gate with --fail-under-lines 90 --fail-under-functions 90 on both matrix operating systems, so the gate is enforced outside the capture run as well. The excluded set (src/main.rs, src/lib.rs, src/ui/**) and the 90 % threshold are identical to the capture configuration.",
+      "branches_note": "branches reads 100 over a 0/0 denominator: every record of the scoped LCOV report carries BRF:0 and BRH:0 because the crate produces no branch counters, so 100 % is vacuous and must not be read as real branch coverage. Treat branches as not measured; only lines and functions are gated. statements is null because the LCOV format carries no statement counter."
     },
     "tool": "cargo-llvm-cov 0.9.1",
     "format": "lcov",
     "report_path": "coverage/lcov.info",
-    "status": "below_target",
-    "note": "The 90% gate applies to core/ and platform/ pure logic, which measures 96.51% lines and 92.92% functions (unit_testable_scope.status = at_or_above_target) and is the metric range recorded against the 90% thresholds in openspec/changes/<change>/logs/evidence.json. The overall project percentage (87.75% lines, 84.25% functions) counts the display-bound files and is reported as a trend, not as a hard CI gate, until feature work begins (design D6): the Iced UI layer, the application loop and the binary edge cannot be unit-tested without a display server. The 90% threshold is never lowered; the excluded files are removed by the measurement configuration recorded under measurement_configuration.",
-    "sonarqube_gate_note": "The SonarQube quality gate reports PASS because the gate conditions configured on the server carry no hard 90% coverage threshold during the bootstrap phase; coverage is a trend until feature work begins (design D6). The 90% target applies to the unit-testable scope recorded in unit_testable_scope (96.51% lines, 92.92% functions). sonar-project.properties declares analysis inputs only and holds no gate threshold, so the gate result is not evidence that the overall project percentage met the target. Rationale documented in docs/project-context.md."
+    "status": "at_or_above_target",
+    "note": "The 90% gate applies to core/ and platform/ pure logic, which measures 96.93% lines and 96.34% functions (unit_testable_scope.status = at_or_above_target) and is the metric range recorded against the 90% thresholds in openspec/changes/<change>/logs/evidence.json. The overall project percentage (96.31% lines, 95.75% functions) counts the display-bound files and is reported as a trend rather than as the gated metric: the Iced UI layer, the application loop and the binary edge cannot be unit-tested without a display server, so their coverage depends on the end-to-end run and moves independently of the gate. The 90% threshold is never lowered; the excluded files are removed by the measurement configuration recorded under measurement_configuration. Figures come from the current HEAD run: measured_* counts the whole crate, unit_testable_scope counts the gated subset, and the manifest records the capture run it executed.",
+    "sonarqube_gate_note": "The SonarQube quality gate reports PASS because the gate conditions configured on the server carry no hard 90% coverage threshold during the bootstrap phase; the enforceable 90% gate is the CI Run coverage stage, and coverage is otherwise tracked as a trend until feature work begins (design D6). The 90% target applies to the unit-testable scope recorded in unit_testable_scope (96.93% lines, 96.34% functions). sonar-project.properties declares analysis inputs only and holds no gate threshold, so the gate result is not evidence that the overall project percentage met the target. Rationale documented in docs/project-context.md."
   }
 }

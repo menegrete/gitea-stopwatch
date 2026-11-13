@@ -26,6 +26,12 @@ use crate::core::{Error, Result};
 
 const LOCK_FILE_NAME: &str = "gitea-stopwatch.lock";
 
+/// Acquisition attempts per call: the initial `create_new` plus one retry after
+/// a stale lock is removed. The retry is capped so an undeletable stale lock
+/// (read-only user-data directory, Windows sharing violation) reports a typed
+/// error instead of recursing without bound.
+const ACQUIRE_ATTEMPTS: u32 = 2;
+
 /// Outcome of a single-instance acquisition attempt.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LockOutcome {
@@ -43,41 +49,61 @@ pub enum LockOutcome {
 ///
 /// Returns [`LockOutcome::Acquired`] when this process created the lock, and
 /// [`LockOutcome::AlreadyRunning`] when a live process already owns it. Stale
-/// locks whose owner is no longer alive are removed and retried.
+/// locks whose owner is no longer alive are removed and retried at most once;
+/// when the stale lock cannot be replaced the call returns a typed [`Error`]
+/// rather than retrying without bound.
 pub fn try_acquire(user_data_dir: &Path) -> Result<LockOutcome> {
     let lock_path = user_data_dir.join(LOCK_FILE_NAME);
 
     fs::create_dir_all(user_data_dir)?;
 
-    // Try to create the lock file exclusively. If it already exists, another
-    // instance may be running.
-    match OpenOptions::new()
-        .create_new(true)
-        .write(true)
-        .open(&lock_path)
-    {
-        Ok(mut file) => {
-            // We own the lock. Write our PID so a stale lock can be detected.
-            let _ = writeln!(file, "{}", std::process::id());
-            let _ = file.flush();
-            Ok(LockOutcome::Acquired)
-        }
-        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
-            // Lock file exists: check whether the owner is still alive.
-            let owner_pid = read_owner_pid(&lock_path);
-            match owner_pid {
-                Some(pid) if is_process_alive(pid) => Ok(LockOutcome::AlreadyRunning {
-                    owner_pid: Some(pid),
-                }),
-                _ => {
-                    // Stale lock: remove it and try again.
-                    let _ = fs::remove_file(&lock_path);
-                    try_acquire(user_data_dir)
+    // A stale lock that cannot be removed leaves this populated so the
+    // exhausted-attempts path can report the underlying I/O failure.
+    let mut stale_lock_removal: Option<io::Error> = None;
+
+    for _ in 0..ACQUIRE_ATTEMPTS {
+        // Try to create the lock file exclusively. If it already exists,
+        // another instance may be running.
+        match OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&lock_path)
+        {
+            Ok(mut file) => {
+                // We own the lock. Write our PID so a stale lock can be detected.
+                let _ = writeln!(file, "{}", std::process::id());
+                let _ = file.flush();
+                return Ok(LockOutcome::Acquired);
+            }
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+                // Lock file exists: check whether the owner is still alive.
+                let owner_pid = read_owner_pid(&lock_path);
+                match owner_pid {
+                    Some(pid) if is_process_alive(pid) => {
+                        return Ok(LockOutcome::AlreadyRunning {
+                            owner_pid: Some(pid),
+                        });
+                    }
+                    _ => {
+                        // Stale lock: remove it and let the bounded loop retry.
+                        match fs::remove_file(&lock_path) {
+                            Ok(()) => {}
+                            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+                            Err(e) => stale_lock_removal = Some(e),
+                        }
+                    }
                 }
             }
+            Err(e) => return Err(Error::Io { source: e }),
         }
-        Err(e) => Err(Error::Io { source: e }),
     }
+
+    Err(match stale_lock_removal {
+        Some(source) => Error::Io { source },
+        None => Error::Platform {
+            operation: "single-instance lock not acquired after removing a stale lock".to_string(),
+        },
+    })
 }
 
 /// Acquires the single-instance lock in the user data directory.
@@ -334,6 +360,23 @@ mod tests {
         );
 
         release(&dir).unwrap();
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn try_acquire_returns_error_when_a_stale_lock_cannot_be_removed() {
+        let dir = tmp_dir();
+        let _ = fs::remove_dir_all(&dir);
+        // A directory at the lock path is never removable with `remove_file`, so
+        // stale-lock recovery cannot succeed: the bounded attempts must report a
+        // typed error instead of recursing until the stack overflows.
+        fs::create_dir_all(dir.join(LOCK_FILE_NAME)).unwrap();
+
+        assert!(matches!(
+            try_acquire(&dir),
+            Err(Error::Io { .. } | Error::Platform { .. })
+        ));
+
         let _ = fs::remove_dir_all(&dir);
     }
 
