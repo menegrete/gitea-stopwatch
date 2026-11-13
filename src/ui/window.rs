@@ -18,7 +18,9 @@ use std::time::Duration;
 use iced::widget::{column, container, text};
 use iced::{Alignment, Element, Length, Subscription, Task, Theme, time, window};
 
-use crate::core::{Geometry, clamp_to_monitor, load_geometry, save_geometry};
+use crate::core::{
+    Geometry, clamp_to_monitor, config_path_in_user_data_dir, load_geometry_at, save_geometry_at,
+};
 use crate::platform::focus::{self, FocusAction};
 
 /// Application title shown in the window decoration.
@@ -201,7 +203,11 @@ fn geometry_for_monitor(restored: Geometry, monitor: Option<iced::Size>) -> Geom
 /// Boot function: creates the initial state and the geometry-restore task.
 ///
 /// The user data directory is injected by the library edge so the window and
-/// the single-instance lock observe the same directory.
+/// the single-instance lock observe the same directory — and so geometry is
+/// read from, and written to, exactly that directory. No UI path resolves the
+/// directory from the process environment, which keeps the same seam the
+/// window already uses for the focus channel and leaves the developer's real
+/// application data untouched under test.
 ///
 /// The monitor size cannot be observed before the window exists, so a restored
 /// geometry is not clamped here: boot asks the runtime for the window id and
@@ -209,7 +215,10 @@ fn geometry_for_monitor(restored: Geometry, monitor: Option<iced::Size>) -> Geom
 /// geometry is pushed to the real window (spec:
 /// window-geometry-persistence, scenario `geometry-restored-and-clamped`).
 pub fn boot(user_data_dir: PathBuf) -> (MainWindow, Task<Message>) {
-    match load_geometry().ok().flatten() {
+    match load_geometry_at(&config_path_in_user_data_dir(&user_data_dir))
+        .ok()
+        .flatten()
+    {
         Some(geometry) => (
             MainWindow::restoring(user_data_dir, geometry),
             // Chained after the window opens, so the id resolves to the real
@@ -229,8 +238,14 @@ pub fn update(state: &mut MainWindow, message: Message) -> Task<Message> {
     match message {
         Message::CloseRequested { id } => {
             state.closing = true;
-            // Persist geometry before closing.
-            let _ = save_geometry(state.geometry);
+            // Persist geometry before closing, in the injected user data
+            // directory — never in a directory resolved from the process
+            // environment, which under test would be the developer's real
+            // application data.
+            let _ = save_geometry_at(
+                &config_path_in_user_data_dir(&state.user_data_dir),
+                state.geometry,
+            );
             // Close the requested window; Iced exits when all windows are
             // closed, giving a clean shutdown with no residual processes.
             window::close(id)
@@ -450,6 +465,41 @@ mod tests {
         assert_eq!(state.focus, FocusStatus::Idle);
         assert_eq!(state.user_data_dir, dir);
         assert!(!state.closing);
+        assert!(
+            state.pending_restore.is_none(),
+            "a first session with no configuration file has nothing to restore"
+        );
+    }
+
+    #[test]
+    fn boot_restores_the_geometry_stored_in_the_injected_data_directory() {
+        let dir = tmp_dir();
+        let _ = fs::remove_dir_all(&dir);
+        let persisted = Geometry {
+            width: 1024.0,
+            height: 768.0,
+            x: 48.0,
+            y: 24.0,
+        };
+        // The previous session persisted its geometry in the injected
+        // directory; boot must read exactly that file and nothing else, so no
+        // environment-resolved directory is involved.
+        let config_path = config_path_in_user_data_dir(&dir);
+        save_geometry_at(&config_path, persisted).unwrap();
+
+        let (state, _task) = boot(dir.clone());
+
+        assert_eq!(
+            state.pending_restore,
+            Some(persisted),
+            "boot must restore the geometry stored under the injected directory"
+        );
+        assert!(
+            config_path.starts_with(&dir),
+            "the configuration file must live under the injected directory, got {config_path:?}"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -687,6 +737,16 @@ mod tests {
         );
         assert_eq!(state.geometry.height, 720.0);
 
+        // The write landed in the injected directory, which is what keeps this
+        // test away from the developer's real application data.
+        let persisted = load_geometry_at(&config_path_in_user_data_dir(&dir))
+            .expect("the persisted geometry must be readable")
+            .expect("the close path must persist the window geometry");
+        assert_eq!(
+            persisted, state.geometry,
+            "the close path must persist the clamped geometry under the injected directory"
+        );
+
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -773,6 +833,19 @@ mod tests {
         );
 
         assert!(state.closing);
+        // The geometry was persisted under the injected directory, and only
+        // there: the close path never resolves the directory from the process
+        // environment.
+        let config_path = config_path_in_user_data_dir(&dir);
+        assert!(
+            config_path.starts_with(&dir),
+            "the configuration file must live under the injected directory, got {config_path:?}"
+        );
+        assert_eq!(
+            load_geometry_at(&config_path).unwrap(),
+            Some(state.geometry),
+            "closing must persist the geometry in the injected directory"
+        );
 
         let _ = fs::remove_dir_all(&dir);
     }

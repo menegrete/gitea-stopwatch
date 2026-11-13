@@ -48,25 +48,34 @@ struct Config {
     geometry: Geometry,
 }
 
-/// Resolve the path to the configuration file.
-fn config_path() -> Result<std::path::PathBuf> {
-    Ok(dirs::user_data_dir()?.join(CONFIG_FILE_NAME))
-}
-
 /// Resolve the configuration file path for an explicit user data base directory.
 ///
 /// Composes the same platform namespacing and file name the application uses,
 /// so a caller can address the real configuration location without mutating the
-/// process environment. Integration tests use it to drive [`load_geometry_at`]
-/// and [`save_geometry_at`] against an isolated directory tree.
+/// process environment. This is the single geometry path seam: tests pass an
+/// isolated base directory instead of the developer's real application data.
 pub fn config_path_in(base: &Path) -> std::path::PathBuf {
     dirs::user_data_dir_from(base).join(CONFIG_FILE_NAME)
 }
 
+/// Resolve the configuration file path inside an already-resolved user data
+/// directory.
+///
+/// [`config_path_in`] namespaces a base directory first; this variant takes the
+/// namespaced directory itself, which is what the application passes around for
+/// its single-instance lock and focus channel. The UI edge builds the geometry
+/// path from the injected directory with this function, so geometry is read and
+/// written next to the lock and focus files rather than in a directory resolved
+/// from the process environment.
+pub fn config_path_in_user_data_dir(user_data_dir: &Path) -> std::path::PathBuf {
+    user_data_dir.join(CONFIG_FILE_NAME)
+}
+
 /// Load persisted geometry from a specific configuration file.
 ///
-/// Split from [`load_geometry`] so the file logic is testable against a
-/// temporary path instead of the developer's real application data directory.
+/// The explicit path is the only way to reach geometry: there is deliberately
+/// no environment-resolved variant, so no caller can accidentally read the
+/// developer's real application data from a unit test.
 pub fn load_geometry_at(path: &Path) -> Result<Option<Geometry>> {
     match std::fs::read_to_string(path) {
         Ok(contents) => {
@@ -85,17 +94,11 @@ pub fn load_geometry_at(path: &Path) -> Result<Option<Geometry>> {
     }
 }
 
-/// Load persisted geometry from the configuration file.
-///
-/// Returns `Ok(None)` if no configuration file exists yet.
-pub fn load_geometry() -> Result<Option<Geometry>> {
-    load_geometry_at(&config_path()?)
-}
-
 /// Save geometry to a specific configuration file.
 ///
-/// Split from [`save_geometry`] so the file logic is testable against a
-/// temporary path instead of the developer's real application data directory.
+/// The explicit path is the only way geometry is written: there is
+/// deliberately no environment-resolved variant, so no caller — in particular
+/// no unit test — can accidentally write the developer's real application data.
 pub fn save_geometry_at(path: &Path, geometry: Geometry) -> Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
@@ -109,11 +112,6 @@ pub fn save_geometry_at(path: &Path, geometry: Geometry) -> Result<()> {
         path: path.to_string_lossy().to_string(),
         source: e,
     })
-}
-
-/// Save geometry to the configuration file.
-pub fn save_geometry(geometry: Geometry) -> Result<()> {
-    save_geometry_at(&config_path()?, geometry)
 }
 
 /// Clamp geometry so the window fits within the monitor bounds.

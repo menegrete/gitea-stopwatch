@@ -128,3 +128,7 @@ language: es
 - [x] 22.4 Make the `LLVM_COV_FLAGS` scope regex portable/document the platform difference
 - [x] 22.5 Add `--locked` to `cargo install` steps in CI
 - [x] 22.6 Fix malformed `tasks.md` frontmatter (proper `---` fences) and verify `openspec status --change bootstrap-rust-desktop-shell --json` still parses
+
+## 23. Major Resolution — Isolate Geometry Persistence via Injected Path
+
+- [x] 23.1 Route `CloseRequested` geometry save (and `boot()` load) through the injected `user_data_dir` using `config_path_in` + `save_geometry_at`/`load_geometry_at` so no UI path uses env-resolved `save_geometry()`/`load_geometry()`; update the affected unit tests to use an isolated temp `user_data_dir` and prove the real `~/.local/share/gitea-stopwatch/` is untouched
