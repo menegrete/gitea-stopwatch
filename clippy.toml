@@ -1,0 +1,5 @@
+# Lint configuration committed with the crate so the gate lives in the project
+# rather than in a command a developer remembers to type
+# (docs/standards-desktop-rust.md, Formatting and Linting).
+# The minimum supported compiler is the pinned toolchain; keep the two in sync.
+msrv = "1.100.0"

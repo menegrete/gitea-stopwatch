@@ -1,0 +1,7 @@
+
+running 2 tests
+test e2e_window_title_is_present ... ok
+test e2e_uses_isolated_user_data_and_cleans_up ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

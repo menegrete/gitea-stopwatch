@@ -1,0 +1,9 @@
+[toolchain]
+# Pinned to one exact stable release instead of the floating `stable` channel
+# (standards-desktop-rust.md, Toolchain and Edition Policy: a git-tracked
+# `rust-toolchain.toml` names one exact channel so every developer and every CI
+# leg compiles with the same compiler). The patch pin is safe because the CI
+# workflow requests the same release (`dtolnay/rust-toolchain@1.100.0`); both
+# sides move together when the pin is bumped.
+channel = "1.100.0"
+components = ["rustfmt", "clippy", "llvm-tools-preview"]

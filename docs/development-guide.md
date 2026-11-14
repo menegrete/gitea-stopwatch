@@ -30,6 +30,7 @@ Install the required tooling versions for your project:
 - `Git` >= `<MIN_GIT_VERSION>`
 - `rustup` with the pinned toolchain: `rustup toolchain install` reads `rust-toolchain.toml`, so the channel, edition support and the `rustfmt`/`clippy` components all come from the committed file
 - The coverage subcommand: `rustup component add llvm-tools-preview` followed by `cargo install cargo-llvm-cov --locked`. Both are prerequisites of the coverage gate; a missing subcommand is reported as a missing prerequisite, never installed mid-run
+- The supply-chain subcommands: `cargo install cargo-audit --version 0.23.0 --locked` and `cargo install cargo-deny --version 0.20.2 --locked`, the same pinned versions and `--locked` flag the CI workflow installs
 - The framework toolchain for `<FRAMEWORK>`, as the framework's own documentation requires for a release build
 - A platform toolchain for the targets you build: the platform SDK for code signing, and the notarization credentials where the platform requires them
 
@@ -88,7 +89,7 @@ Requirements:
 - Doc tests are part of the same run, so an example in a doc comment cannot rot
 - Cover the success path and the failure path, and cover the rejected-argument path of every operation the interface reaches
 - Test the core logic against an injected capability; never against a real keyring, a real network socket or a launched window
-- Maintain a coverage threshold of `90%` for lines and functions, measured over `src/`
+- Maintain a coverage threshold of `90%` for lines and functions over the unit-testable scope (`src/core/`, `src/platform/`); the display-bound files are covered by the end-to-end target and the overall percentage is a trend (see §8)
 - A test SHALL create its own user-data directory under a temporary root and remove it afterwards; it MUST NOT touch the developer's real application data
 
 This project follows the universal `src/` + `tests/` convention: application code lives in `src/`, tests live in `tests/`, so the generated `sonar-project.properties` declares `sonar.sources=src` and `sonar.tests=tests` with `sonar.test.inclusions=tests/**/*.rs`.
@@ -98,14 +99,19 @@ This project follows the universal `src/` + `tests/` convention: application cod
 From `<DESKTOP_PATH>`:
 
 ```bash
-cargo llvm-cov --lcov --output-path coverage/lcov.info
+LLVM_COV_FLAGS='-ignore-filename-regex=(^|[\\/])src[\\/]((main|lib)\.rs|ui[\\/])' \
+  cargo llvm-cov --lcov --output-path coverage/lcov.info \
+  --fail-under-lines 90 --fail-under-functions 90
 ```
 
 Requirements:
 
-- The command is the same one the `coverage` producer declares, so the report the analysis reads is the report this command wrote
+- The gate applies to the unit-testable scope `src/core/` and `src/platform/`; `src/ui/`, `src/lib.rs` and `src/main.rs` require a display server and are covered by the end-to-end target instead. The `LLVM_COV_FLAGS` value above is the form recorded in `coverage-baseline.json`
+- The `[\\/]` character classes are separator-agnostic on purpose: they match the forward slash `llvm-cov` emits on Linux and the backslash it emits on Windows. A POSIX-only `(^|/)src/((main|lib)\.rs|ui/)` regex matches the same set on Linux but would miss `src\ui\...` paths on Windows
+- The `coverage` producer records the bare `cargo llvm-cov --lcov --output-path coverage/lcov.info` command, so the scope travels in the exported variable and reproducing the gate requires the invocation above
 - The report is LCOV: it carries per-file line and function counters and no statement counter, and the evidence file records that the statement counter is absent instead of inventing a number
-- The threshold is `90%` for lines and functions over `src/`; a `#[cfg(test)]` module and a generated binding are excluded by configuration, not by lowering the threshold
+- `branches` reads `100` over a `0/0` denominator on this crate and is vacuous: the scoped records carry `BRF:0`/`BRH:0`, so branch coverage is not measured and only lines and functions are gated
+- The threshold is `90%` for lines and functions over the unit-testable scope; a `#[cfg(test)]` module and a generated binding are excluded by configuration, not by lowering the threshold
 - An uncovered line is examined before it is accepted: an error branch that never runs is an untested failure path, and the fix is a test rather than an exclusion
 
 ## 9. SonarQube Deterministic Scans

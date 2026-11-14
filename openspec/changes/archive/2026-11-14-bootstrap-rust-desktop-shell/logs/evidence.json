@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 3,
+  "appType": "desktop",
+  "stack": "rust",
+  "change": "bootstrap-rust-desktop-shell",
+  "mode": "standard",
+  "producers": [
+    {
+      "id": "unit-tests",
+      "command": "cargo test",
+      "exitCode": 0,
+      "status": "PASS",
+      "metrics": null
+    },
+    {
+      "id": "coverage",
+      "command": "cargo llvm-cov --lcov --output-path coverage/lcov.info",
+      "exitCode": 0,
+      "status": "PASS",
+      "metrics": {
+        "statements": null,
+        "branches": 100,
+        "functions": 96.3,
+        "lines": 96.91,
+        "thresholds": {
+          "statements": 90,
+          "branches": 90,
+          "functions": 90,
+          "lines": 90
+        }
+      }
+    },
+    {
+      "id": "e2e",
+      "command": "cargo test --test e2e",
+      "exitCode": 0,
+      "status": "PASS",
+      "metrics": null
+    }
+  ],
+  "evidenceFiles": {
+    "e2e": "2026-11-13_09-53-03_T01_e2e.txt"
+  }
+}
