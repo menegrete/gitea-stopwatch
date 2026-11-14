@@ -1,5 +1,5 @@
 ## Purpose
-<!-- El shell de escritorio Rust con Iced 0.14.x provee el ciclo de vida de la aplicación: ventana principal vacía con título y tema, cierre limpio, bloqueo de instancia única, persistencia y restricción de la geometría de ventana a los monitores conectados, logging y hook de pánico en el borde, y navegación de marcador de posición para la futura ventana principal. -->
+El shell de escritorio Rust con Iced 0.14.x provee el ciclo de vida de la aplicación: ventana principal vacía con título y tema, cierre limpio, bloqueo de instancia única, persistencia y restricción de la geometría de ventana a los monitores conectados, logging y hook de pánico en el borde, y navegación de marcador de posición para la futura ventana principal.
 
 ## ADDED Requirements
 

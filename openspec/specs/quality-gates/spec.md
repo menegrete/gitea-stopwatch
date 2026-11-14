@@ -1,7 +1,9 @@
-## Purpose
-<!-- Las puertas de calidad automatizan la verificación del proyecto Rust: canal de CI para Linux y Windows con formato, clippy, pruebas, cobertura y auditoría de dependencias, configuración y escaneo de SonarQube, prueba E2E con directorio de datos de usuario aislado, cobertura base del 90 %, captura de evidencia de nsoft-specboot, y endurecimiento de CI con protección de rama, Dependabot, caché y concurrencia. -->
+# quality-gates Specification
 
-## ADDED Requirements
+## Purpose
+Las puertas de calidad automatizan la verificación del proyecto Rust: canal de CI para Linux y Windows con formato, clippy, pruebas, cobertura y auditoría de dependencias, configuración y escaneo de SonarQube, prueba E2E con directorio de datos de usuario aislado, cobertura base del 90 %, captura de evidencia de nsoft-specboot, y endurecimiento de CI con protección de rama, Dependabot, caché y concurrencia.
+
+## Requirements
 
 ### Requirement: ci-pipeline
 El canal de CI SHALL ejecutar en Linux y Windows: formato, clippy con advertencias como error, pruebas, cobertura y auditoría de dependencias.
